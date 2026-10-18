@@ -36,6 +36,14 @@ def upscale(im: Image.Image, min_side: int = 400) -> tuple[Image.Image, int]:
     return im.resize((im.width * factor, im.height * factor), Image.LANCZOS), factor
 
 
+def fit(im: Image.Image, max_side: int = 1568) -> Image.Image:
+    """Large screenshots cost many tokens and vision models downscale them anyway (Claude to 1568 px)."""
+    if max(im.size) <= max_side:
+        return im
+    k = max_side / max(im.size)
+    return im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
+
+
 def grid_marks(im: Image.Image, rows: int, columns: int) -> Image.Image:
     """Set-of-Mark style: draws tile borders and a number in each tile so the model answers with labels it can see."""
     im = im.convert("RGB").copy()

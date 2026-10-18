@@ -67,7 +67,8 @@ async def run(specs: list[ModelSpec], cases: list[dict[str, Any]], votes: int = 
             t0 = time.monotonic()
             try:
                 r = await layer.solve(case["task"])
-                row = {"ok": score(case, r.solution), "cost": r.cost, "answer": r.solution, "error": ""}
+                row = {"ok": score(case, r.solution), "cost": r.cost, "answer": r.solution, "error": "",
+                       "tokens": r.meta.get("tokens", {})}
             except Exception as e:
                 row = {"ok": False, "cost": 0.0, "answer": None, "error": str(e)[:200]}
             row.update(id=case["id"], set=case["set"], seconds=time.monotonic() - t0)
@@ -88,7 +89,10 @@ async def run(specs: list[ModelSpec], cases: list[dict[str, Any]], votes: int = 
             s["ok"] += row["ok"]
         n = len(rows) or 1
         cost = sum(r["cost"] for r in rows)
+        used = [r["tokens"] for r in rows if r.get("tokens")]
+        tokens_per_case = (sum(t.get("input", 0) + t.get("output", 0) for t in used) / len(used)) if used else None
         results[spec.name] = {
+            "tokens_per_case": tokens_per_case,
             "model": spec.model, "provider": spec.provider, "accuracy": sum(r["ok"] for r in rows) / n,
             "seconds": sum(r["seconds"] for r in rows) / n, "cost": cost,
             "usd_per_1000": cost / n * 1000 if (spec.price_in or spec.price_out) else None,

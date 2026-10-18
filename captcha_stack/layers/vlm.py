@@ -99,12 +99,16 @@ class VlmLayer(Layer):
         answers: list[Any] = []
         errors: list[str] = []
         cost = 0.0
+        tokens = {"input": 0, "output": 0, "asks": 0}
 
         async def one() -> None:
             nonlocal cost
             try:
                 reply, usage = await ask(self.spec, images, prompt, self.transport, effort)
                 cost += self.spec.cost(usage)
+                tokens["input"] += usage.get("input", 0)
+                tokens["output"] += usage.get("output", 0)
+                tokens["asks"] += 1
                 answers.append(parse(last_json(reply)))
             except Exception as e:
                 errors.append(str(e))
@@ -123,12 +127,12 @@ class VlmLayer(Layer):
         final, support = _consensus(task["type"], answers, same)
         confidence = 1.0 if votes == 1 else support / asked
         return Result(final, confidence, self.name, cost=cost,
-                      meta={"model": self.spec.model, "answers": answers, "errors": errors})
+                      meta={"model": self.spec.model, "answers": answers, "errors": errors, "tokens": tokens})
 
     def _prepare(self, task: dict[str, Any]) -> tuple[list[bytes], str, Callable, Callable]:
         t = task["type"]
         original = imaging.load(decode_image(task["body"]))
-        big, _ = imaging.upscale(original)
+        big = imaging.fit(imaging.upscale(original)[0])
         extra = [decode_image(task["imgInstructions"])] if task.get("imgInstructions") else []
         note = " The last image shows the instruction." if extra else ""
         comment = task.get("comment") or "follow the instruction shown on the image"

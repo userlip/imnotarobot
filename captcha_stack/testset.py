@@ -170,16 +170,20 @@ def from_venusbench(root: Path) -> list[dict[str, Any]]:
         if not image.exists():
             continue
         user = next((m["content"] for m in item["messages"] if m["role"] == "user"), "")
+        # the benchmark's instruction is part of the screenshot itself; the text message is only "<image>"
         instruction = re.sub(r"<image>", "", user if isinstance(user, str) else str(user)).strip()[:600]
         body = base64.b64encode(image.read_bytes()).decode()
         if kind == "OCR":
             m = re.search(r"Type\(content='([^']*)'\)", item["action_raw"])
             if not m:
                 continue
-            task = {"type": "ImageToTextTask", "body": body, "comment": instruction}
+            task = {"type": "ImageToTextTask", "body": body,
+                    "comment": instruction or "this is a screenshot of a page with a CAPTCHA; type the code shown in the CAPTCHA"}
             expected: dict[str, Any] = {"text": m.group(1)}
         else:
-            task = {"type": "CoordinatesTask", "body": body, "comment": instruction}
+            task = {"type": "CoordinatesTask", "body": body,
+                    "comment": instruction or "this is a screenshot of a page with a CAPTCHA; read its instruction in the "
+                                              "screenshot and click what it asks, in the order it asks"}
             expected = {"boxes": item["action_raw_rect"], "inorder": bool(item.get("inorder"))}
         cases.append({"id": f"venus-{i}", "set": f"VenusBench: {kind}", "task": task, "expected": expected})
     return cases
