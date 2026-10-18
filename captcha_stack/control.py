@@ -253,8 +253,9 @@ class Controller:
     # --- start at login ---------------------------------------------------------
     @staticmethod
     def launch_agent_plist() -> dict:
-        return {"Label": "app.captcha-stack", "ProgramArguments": [sys.executable, "-m", "captcha_stack.menubar"],
-                "RunAtLoad": True, "ProcessType": "Interactive"}
+        # inside the bundled app sys.executable is the app itself
+        args = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "captcha_stack.menubar"]
+        return {"Label": "app.captcha-stack", "ProgramArguments": args, "RunAtLoad": True, "ProcessType": "Interactive"}
 
     @staticmethod
     def starts_at_login() -> bool:
