@@ -1,0 +1,12 @@
+[project]
+name = "captcha-stack"
+version = "0.1.0"
+description = "Layered captcha solver with a 2Captcha-style API: local models, then a vision LLM, then human workers"
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "tests"]
