@@ -9,3 +9,10 @@ def isolated_home(tmp_path, monkeypatch):
 
     monkeypatch.setattr(config, "APP_DIR", tmp_path)
     monkeypatch.setattr(config, "get_secret", lambda account: "")
+
+
+@pytest.fixture(autouse=True)
+def no_local_resellers(monkeypatch):
+    import captcha_stack.discovery as discovery
+
+    monkeypatch.setattr(discovery, "local_reseller_urls", lambda: [])

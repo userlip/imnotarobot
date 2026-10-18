@@ -2,7 +2,9 @@
 
 import asyncio
 import re
+import tomllib
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -25,7 +27,9 @@ VISION_PATTERNS = {
     "groq": r"(llama-4|vision)",
     "mistral": r"(pixtral|mistral-(medium|small|large)-)",
 }
-NOT_CHAT = r"(embed|tts|whisper|transcri|audio|realtime|dall-e|imagen|veo|moderation|search|image-gen|-image$)"
+NOT_CHAT = r"(embed|tts|whisper|transcri|audio|realtime|dall-e|imagen|veo|sora|moderation|search|image-gen|-image$|gpt-image)"
+# resellers serve models of many makers, so any maker's vision naming counts
+VISION_ANY = r"(claude|gemini|gpt-4o|gpt-4\.1|gpt-5|gpt-6|o3|o4|vl|omni|qvq|pixtral|llama-4|vision|grok-4|grok-5)"
 
 
 @dataclass
@@ -59,7 +63,7 @@ def _headers(provider: str, key: str) -> dict[str, str]:
 
 def _parse_models(provider: str, j: dict[str, Any]) -> list[ModelInfo]:
     out = []
-    pattern = VISION_PATTERNS.get(provider)
+    pattern = VISION_PATTERNS.get(provider, VISION_ANY)
     for m in j.get("data", j.get("models", [])):
         mid = str(m.get("id") or m.get("name") or "").removeprefix("models/")
         if not mid or re.search(NOT_CHAT, mid, re.I):
@@ -100,15 +104,45 @@ async def _try(client: httpx.AsyncClient, provider: str, key: str, base_url: str
     return None
 
 
-async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTransport | None = None) -> Detected:
+KNOWN_RESELLERS = ["https://reseller.example/v1"]
+
+
+def local_reseller_urls() -> list[str]:
+    """Known OpenAI-compatible resellers plus any the user set up for Codex."""
+    urls = list(KNOWN_RESELLERS)
+    path = Path.home() / ".codex" / "config.toml"
+    try:
+        providers = tomllib.loads(path.read_text()).get("model_providers", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        providers = {}
+    for p in providers.values():
+        url = str(p.get("base_url", "")).rstrip("/") if isinstance(p, dict) else ""
+        if url.startswith("https://") and url not in urls:
+            urls.append(url)
+    return urls
+
+
+async def _try_reseller(client: httpx.AsyncClient, key: str, base: str) -> Detected | None:
+    r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {key}"})
+    if r.status_code == 200:
+        try:
+            return Detected("custom", base, _parse_models("custom", r.json()))
+        except ValueError:
+            return None
+    return None
+
+
+async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTransport | None = None,
+                 resellers: list[str] | None = None) -> Detected:
     """Finds who issued the key. With base_url (a reseller or self-hosted server) only that address is checked."""
     key = key.strip()
     async with httpx.AsyncClient(timeout=20, transport=transport) as client:
         if base_url:
             base = base_url.rstrip("/")
+            found = await _try_reseller(client, key, base)
+            if found:
+                return found
             r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {key}"})
-            if r.status_code == 200:
-                return Detected("custom", base, _parse_models("custom", r.json()))
             if r.status_code in (401, 403):
                 raise DetectError(f"{base} не принял ключ (HTTP {r.status_code})")
             probe = await client.post(f"{base}/chat/completions", headers={"Authorization": f"Bearer {key}"}, json={})
@@ -120,6 +154,13 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
         for provider in order:
             try:
                 found = await _try(client, provider, key, "")
+            except httpx.HTTPError:
+                continue
+            if found:
+                return found
+        for base in (local_reseller_urls() if resellers is None else resellers):
+            try:
+                found = await _try_reseller(client, key, base)
             except httpx.HTTPError:
                 continue
             if found:

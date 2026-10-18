@@ -131,3 +131,8 @@ def test_use_best_enables_and_moves_it_first(ctl, monkeypatch):
     ctl.toggle_key_model("openai", "gpt-5")
     ctl.use_best("openai/gpt-4o")
     assert ctl.cfg.layers == ["local", "vlm:openai/gpt-4o", "vlm:openai/gpt-5", "human"]
+
+
+def test_reseller_key_is_named_after_its_host(ctl, monkeypatch):
+    fake_detect(monkeypatch, "custom", [("claude-opus-5-5", True)], base="https://reseller.example/v1")
+    assert ctl.add_key("sk-reseller-abc").name == "reseller.example"

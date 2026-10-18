@@ -11,6 +11,26 @@ from .control import Controller
 ICON = Path(__file__).with_name("assets") / "menubar.png"
 
 
+def install_edit_menu() -> None:
+    """Gives the app an Edit menu: without one, Cmd+V/C/X/A do nothing in its dialogs (menu bar apps have no menu)."""
+    from AppKit import NSApplication, NSMenu, NSMenuItem
+
+    app = NSApplication.sharedApplication()
+    main = app.mainMenu() or NSMenu.alloc().init()
+    edit = NSMenu.alloc().initWithTitle_("Edit")
+    for title, action, key in [("Undo", "undo:", "z"), ("Cut", "cut:", "x"), ("Copy", "copy:", "c"),
+                               ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")]:
+        edit.addItemWithTitle_action_keyEquivalent_(title, action, key)
+    holder = NSMenuItem.alloc().init()
+    holder.setSubmenu_(edit)
+    main.addItem_(holder)
+    app.setMainMenu_(main)
+
+
+def clipboard_text() -> str:
+    return subprocess.run(["pbpaste"], capture_output=True, text=True, check=False).stdout.strip()
+
+
 def ask(title: str, message: str, default: str = "", secure: bool = False) -> str | None:
     w = rumps.Window(message=message, title=title, default_text=default, ok="Сохранить", cancel="Отмена",
                      dimensions=(320, 24), secure=secure)
@@ -24,6 +44,7 @@ class MenuBarApp(rumps.App):
         super().__init__("captcha-stack", icon=str(ICON), template=True, quit_button=None)
         self.c = controller
         self.bench_job: dict = {}
+        self._edit_menu_ready = False
         self.rebuild()
         rumps.Timer(self.refresh, 5).start()
 
@@ -55,6 +76,7 @@ class MenuBarApp(rumps.App):
             models.add(sub)
         if c.cfg.keys:
             models.add(rumps.separator)
+        models.add(rumps.MenuItem("Добавить ключ из буфера обмена", callback=self.add_key_from_clipboard))
         models.add(rumps.MenuItem("Добавить ключ…", callback=self.add_key))
         models.add(rumps.MenuItem("Сравнить включённые модели…", callback=lambda _: self.compare(None)))
         human = rumps.MenuItem(f"Люди: {c.cfg.human_provider}")
@@ -72,6 +94,9 @@ class MenuBarApp(rumps.App):
         ]
 
     def refresh(self, _=None) -> None:
+        if not self._edit_menu_ready:
+            install_edit_menu()
+            self._edit_menu_ready = True
         self.today.title = self.c.today_line()
         job = self.bench_job
         if job.get("running"):
@@ -88,6 +113,13 @@ class MenuBarApp(rumps.App):
                                     ok="Поставить", cancel="Не надо") == 1:
                 self._do(self.c.use_best, best)
 
+    def add_key_from_clipboard(self, _) -> None:
+        secret = clipboard_text()
+        if not secret or " " in secret or len(secret) < 12:
+            rumps.alert("В буфере нет ключа", "Скопируйте ключ API и выберите пункт ещё раз.")
+            return
+        self._add_key(secret, "")
+
     def add_key(self, _) -> None:
         secret = ask("Добавить ключ", "Ключ API — поставщик определится сам", secure=True)
         if not secret:
@@ -96,6 +128,9 @@ class MenuBarApp(rumps.App):
                                     "Пусто — определить самому")
         if base is None:
             return
+        self._add_key(secret, base)
+
+    def _add_key(self, secret: str, base: str) -> None:
         try:
             entry = self.c.add_key(secret, base)
         except Exception as e:

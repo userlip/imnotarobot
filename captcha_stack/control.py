@@ -6,6 +6,7 @@ import plistlib
 import sys
 import threading
 import time
+from urllib.parse import urlparse
 from pathlib import Path
 
 import uvicorn
@@ -158,8 +159,9 @@ class Controller:
             raise ValueError("пустой ключ")
         found = detect_sync(secret, base_url.strip())
         taken = {k.name for k in self.cfg.keys}
-        name = found.provider if found.provider not in taken else next(
-            f"{found.provider}-{i}" for i in range(2, 99) if f"{found.provider}-{i}" not in taken)
+        base_name = urlparse(found.base_url).hostname or "custom" if found.provider == "custom" else found.provider
+        name = base_name if base_name not in taken else next(
+            f"{base_name}-{i}" for i in range(2, 99) if f"{base_name}-{i}" not in taken)
         entry = KeyEntry(name=name, provider=found.provider, base_url=found.base_url,
                          hint=f"{secret[:5]}…{secret[-4:]}", listable=found.listable,
                          models=[[m.id, m.vision, m.price_in, m.price_out] for m in found.models])

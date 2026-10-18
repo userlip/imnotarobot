@@ -19,7 +19,7 @@ def fake_world(accepting: str, models: dict, calls: list):
             return httpx.Response(200, json=models)
         if who != accepting:
             return httpx.Response(401, json={"error": "bad key"})
-        if who == "custom":
+        if who == "custom" and not models:
             return httpx.Response(404 if request.url.path.endswith("/models") else 400, text="nope")
         if request.url.path.endswith("/key"):
             return httpx.Response(200, json={"data": {}})
@@ -78,3 +78,14 @@ def test_reseller_rejecting_the_key_is_an_error():
 def test_nobody_accepts():
     with pytest.raises(DetectError, match="ни один"):
         run("sk-nothing", "nobody", {"data": []})
+
+
+def test_reseller_from_local_codex_config_is_tried_after_providers():
+    calls: list = []
+    models = {"data": [{"id": "claude-opus-5-5"}, {"id": "gpt-6-luna"}, {"id": "glm-5.3"},
+                       {"id": "gpt-4o-transcribe"}, {"id": "gpt-image-2"}]}
+    found = asyncio.run(detect("sk-reseller-x", transport=fake_world("custom", models, calls),
+                               resellers=["https://reseller.example/v1"]))
+    assert (found.provider, found.base_url) == ("custom", "https://reseller.example/v1")
+    assert [(m.id, m.vision) for m in found.models] == [("claude-opus-5-5", True), ("gpt-6-luna", True), ("glm-5.3", False)]
+    assert calls[-1] == ("custom", "/v1/models")
