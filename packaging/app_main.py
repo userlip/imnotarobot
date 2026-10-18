@@ -20,7 +20,9 @@ def selftest() -> int:
         cfg = Config(layers=["local"], state_path=f"{tmp}/state.json")
         case = testset.generated(1, seed=3)[0]
         r = asyncio.run(Service(cfg).chain.solve(case["task"]))
-    print(json.dumps({"keyring": type(keyring.get_keyring()).__module__, "expected": case["expected"],
+    from captcha_stack.menubar import ICON
+
+    print(json.dumps({"icon": ICON.exists(), "keyring": type(keyring.get_keyring()).__module__, "expected": case["expected"],
                       "solution": r.solution, "layer": r.layer, "confidence": round(r.confidence, 3)}))
     return 0
 

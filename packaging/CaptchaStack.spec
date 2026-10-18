@@ -1,4 +1,4 @@
-from PyInstaller.utils.hooks import collect_all, collect_submodules
+from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 datas, binaries, hiddenimports = [], [], []
 for pkg in ("ddddocr", "onnxruntime", "rumps"):
@@ -8,6 +8,7 @@ for pkg in ("ddddocr", "onnxruntime", "rumps"):
     hiddenimports += h
 hiddenimports += collect_submodules("uvicorn") + collect_submodules("keyring.backends") + ["captcha_stack"]
 hiddenimports += collect_submodules("captcha_stack")
+datas += collect_data_files("captcha_stack")
 
 a = Analysis(["app_main.py"], pathex=[".."], datas=datas, binaries=binaries, hiddenimports=hiddenimports,
              excludes=["tkinter", "matplotlib", "pytest"])

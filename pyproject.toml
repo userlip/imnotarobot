@@ -21,3 +21,6 @@ pythonpath = [".", "tests"]
 
 [tool.setuptools.packages.find]
 include = ["captcha_stack*"]
+
+[tool.setuptools.package-data]
+captcha_stack = ["assets/*.png"]

@@ -1,11 +1,15 @@
 import subprocess
 import threading
 import webbrowser
+from pathlib import Path
 
 import rumps
 
 from . import bench
 from .control import Controller
+
+ICON = Path(__file__).with_name("assets") / "menubar.png"
+
 
 def ask(title: str, message: str, default: str = "", secure: bool = False) -> str | None:
     w = rumps.Window(message=message, title=title, default_text=default, ok="Сохранить", cancel="Отмена",
@@ -16,7 +20,8 @@ def ask(title: str, message: str, default: str = "", secure: bool = False) -> st
 
 class MenuBarApp(rumps.App):
     def __init__(self, controller: Controller):
-        super().__init__("captcha-stack", title="🧩", quit_button=None)
+        # template image: macOS recolours it for light and dark menu bars like system icons
+        super().__init__("captcha-stack", icon=str(ICON), template=True, quit_button=None)
         self.c = controller
         self.bench_job: dict = {}
         self.rebuild()
@@ -70,10 +75,10 @@ class MenuBarApp(rumps.App):
         self.today.title = self.c.today_line()
         job = self.bench_job
         if job.get("running"):
-            self.title = f"🧩 {job['done']}/{job['total']}"
+            self.title = f"{job['done']}/{job['total']}"
         elif job.get("finished"):
             self.bench_job = {}
-            self.title = "🧩"
+            self.title = None
             if job.get("error"):
                 rumps.alert("Сравнение не удалось", job["error"])
                 return
