@@ -46,6 +46,9 @@ class ModelSpec:
     # how long the model thinks (see EFFORTS): recognition = text and tile grids, clicks = point and drag tasks
     effort_recognition: str = "none"
     effort_clicks: str = "medium"
+    # how click tasks are asked: "boxes" = the model outlines each target (box_2d, Gemini's native grounding),
+    # "rulers" = the model reads pixel coordinates off a ruler overlay
+    click_mode: str = "boxes"
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):

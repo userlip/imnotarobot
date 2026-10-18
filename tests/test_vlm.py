@@ -81,7 +81,7 @@ def test_grid_is_numbered_upscaled_and_majority_voted_per_tile():
 
 def test_coordinates_get_a_ruler_copy_and_close_points_are_merged():
     m = FakeModel(['{"points": [[100, 40]]}', '{"points": [[104, 42]]}'])
-    r = run(m.layer().solve({"type": "CoordinatesTask", "body": blank_image((200, 100)), "comment": "click the cat"}))
+    r = run(m.layer(click_mode="rulers").solve({"type": "CoordinatesTask", "body": blank_image((200, 100)), "comment": "click the cat"}))
     assert r.solution == {"coordinates": [{"x": 102, "y": 41}]} and r.confidence == 1.0
     plain, ruler = images_sent(m.requests[0])
     assert ruler.width > plain.width and ruler.height > plain.height
@@ -90,7 +90,7 @@ def test_coordinates_get_a_ruler_copy_and_close_points_are_merged():
 def test_points_outside_the_image_are_dropped():
     m = FakeModel(['{"points": [[900, 900]]}'])
     with pytest.raises(Unsolvable, match="нет ответа|не указала точек"):
-        run(m.layer(votes=1).solve({"type": "CoordinatesTask", "body": blank_image((200, 100))}))
+        run(m.layer(votes=1, click_mode="rulers").solve({"type": "CoordinatesTask", "body": blank_image((200, 100))}))
 
 
 def test_failed_calls_count_against_confidence():
@@ -197,8 +197,24 @@ def test_effort_is_dropped_when_the_api_refuses_it():
 
 def test_clicks_and_recognition_use_their_own_effort():
     m = FakeModel(['{"points": [[10, 10]]}', '{"text": "abc"}'])
-    layer = m.layer(votes=1, effort_recognition="none", effort_clicks="high")
+    layer = m.layer(votes=1, effort_recognition="none", effort_clicks="high", click_mode="rulers")
     run(layer.solve({"type": "CoordinatesTask", "body": blank_image(), "comment": "x"}))
     run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))
     assert m.requests[0]["body"]["enable_thinking"] is True and m.requests[0]["body"]["thinking_budget"] == 16000
     assert m.requests[1]["body"]["enable_thinking"] is False
+
+
+def test_box_mode_clicks_box_centres_in_order_and_sends_only_the_image():
+    reply = ('Instruction: click the cat, then the dog.\n'
+             '{"targets": [{"label": "cat", "box_2d": [100, 200, 300, 400]}, {"label": "dog", "box_2d": [500, 600, 700, 800]}]}')
+    m = FakeModel([reply])
+    r = run(m.layer(votes=2).solve({"type": "CoordinatesTask", "body": blank_image((200, 100)), "comment": ""}))
+    assert r.solution == {"coordinates": [{"x": 60, "y": 20}, {"x": 140, "y": 60}]} and r.confidence == 1.0
+    assert len(images_sent(m.requests[0])) == 1
+    assert "box_2d" in m.requests[0]["body"]["messages"][0]["content"][-1]["text"]
+
+
+def test_box_mode_without_targets_fails():
+    m = FakeModel(['{"targets": []}'])
+    with pytest.raises(Unsolvable, match="не обвела"):
+        run(m.layer(votes=1).solve({"type": "CoordinatesTask", "body": blank_image((200, 100))}))

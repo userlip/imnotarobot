@@ -43,6 +43,16 @@ COORD_PROMPT = (
 )
 
 
+BOX_PROMPT = (
+    "The image contains a CAPTCHA. Task: {comment}\n"
+    "1. Write the instruction exactly as the CAPTCHA states it (it may be printed in the image).\n"
+    "2. Name every target you must click, in the required order.\n"
+    "3. Find each target in the image.\n"
+    "On the last line give the JSON {{\"targets\": [{{\"label\": \"<what>\", \"box_2d\": [ymin, xmin, ymax, xmax]}}, ...]}} "
+    "in click order, with box_2d normalized to 0-1000."
+)
+
+
 def _text_hint(task: dict[str, Any]) -> str:
     parts = []
     if task.get("comment"):
@@ -172,6 +182,20 @@ class VlmLayer(Layer):
         def same(a, b):
             return len(a) == len(b) and all(math.dist(p, q) <= radius for p, q in zip(a, b))
 
+        if self.spec.click_mode == "boxes":
+            def parse_boxes(j):
+                pts = []
+                for t in j.get("targets", []):
+                    box = t.get("box_2d") if isinstance(t, dict) else None
+                    if not box or len(box) != 4:
+                        continue
+                    ymin, xmin, ymax, xmax = (float(v) for v in box)
+                    pts.append(((xmin + xmax) / 2 / 1000 * w, (ymin + ymax) / 2 / 1000 * h))
+                if not pts:
+                    raise Unsolvable("модель не обвела ни одной цели")
+                return pts
+
+            return ([imaging.to_png(big)] + extra, BOX_PROMPT.format(comment=comment) + note, parse_boxes, same)
         overlay = imaging.coordinate_overlay(big, original.size)
         return ([imaging.to_png(big), imaging.to_png(overlay)] + extra, COORD_PROMPT.format(comment=comment) + note,
                 parse, same)
