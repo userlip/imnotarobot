@@ -83,6 +83,11 @@ def create_app(cfg: Config | None = None, layers: list[Layer] | None = None,
         except Exception as e:
             return _error("ERROR_UPSTREAM", str(e))
 
+    @app.get("/health")
+    async def health():
+        return {"ok": True, "service": "captcha-stack", "paused": svc.paused,
+                "layers": [x.name for x in svc.chain.layers if x.available()]}
+
     @app.get("/stats")
     async def stats():
         return {"layers": [{"name": x.name, "available": x.available()} for x in svc.chain.layers],

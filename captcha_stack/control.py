@@ -79,10 +79,20 @@ class Controller:
             self._loop.run_until_complete(self._server.serve())
 
         threading.Thread(target=run, daemon=True, name="captcha-stack-server").start()
+        self._write_runtime()
+
+    def _write_runtime(self) -> None:
+        """Lets other programs on this Mac find the running solver without being told its port."""
+        import os
+
+        path = Path(config_mod.APP_DIR) / "runtime.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"address": self.address, "pid": os.getpid(), "started": time.time()}))
 
     def stop_server(self) -> None:
         if self._server:
             self._server.should_exit = True
+        (Path(config_mod.APP_DIR) / "runtime.json").unlink(missing_ok=True)
 
     @property
     def address(self) -> str:

@@ -7,11 +7,12 @@ name = "captcha-stack"
 version = "0.1.0"
 description = "Layered captcha solver with a 2Captcha-style API: local models, then a vision LLM, then human workers"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "rumps", "pyobjc-framework-WebKit"]
+dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "rumps", "pyobjc-framework-WebKit", "mcp>=2"]
 
 [project.scripts]
 captcha-stack = "captcha_stack.__main__:main"
 captcha-stack-menubar = "captcha_stack.menubar:main"
+captcha-stack-mcp = "captcha_stack.mcp_server:main"
 
 [project.optional-dependencies]
 test = ["pytest"]

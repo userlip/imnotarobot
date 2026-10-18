@@ -8,6 +8,9 @@ for pkg in ("ddddocr", "onnxruntime", "rumps", "WebKit"):
     hiddenimports += h
 hiddenimports += collect_submodules("uvicorn") + ["captcha_stack"]
 hiddenimports += collect_submodules("captcha_stack")
+# mcp.cli exits on import without its optional CLI extras, so it is left out
+hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswith("mcp.cli"))
+datas += collect_data_files("mcp")
 datas += collect_data_files("captcha_stack")
 
 a = Analysis(["app_main.py"], pathex=[".."], datas=datas, binaries=binaries, hiddenimports=hiddenimports,

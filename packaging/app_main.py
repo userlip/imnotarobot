@@ -1,4 +1,5 @@
-"""Entry point of the bundled app. `--selftest` checks the bundle without any window or menu bar icon."""
+"""Entry point of the bundled app. `--selftest` checks the bundle without any window or menu bar icon;
+`--mcp` runs the MCP server over stdio for agents."""
 
 import sys
 
@@ -39,6 +40,11 @@ def selftest() -> int:
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         sys.exit(selftest())
+    if "--mcp" in sys.argv:
+        from captcha_stack.mcp_server import main as mcp_main
+
+        mcp_main()
+        sys.exit(0)
     from captcha_stack.menubar import main
 
     main()
