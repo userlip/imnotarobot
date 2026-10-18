@@ -57,9 +57,10 @@ class State:
 
     def answered(self, kind: str, layer: str, cost: float) -> None:
         self._stat(kind, layer)["answered"] += 1
-        day = self.daily.setdefault(today(), {}).setdefault(layer, {"solved": 0, "usd": 0.0})
+        day = self.daily.setdefault(today(), {}).setdefault(layer, {"solved": 0, "spent": 0.0})
         day["solved"] += 1
-        day["usd"] += cost
+        # amounts are in the layer's own currency: roubles for RuCaptcha, dollars elsewhere
+        day["spent"] = day.get("spent", day.pop("usd", 0.0)) + cost
         for old in sorted(self.daily)[:-31]:
             del self.daily[old]
         self.save()
@@ -80,7 +81,11 @@ class State:
         return d["reported_bad"] * 2 >= d["answered"]
 
     def spent_today(self, layer: str) -> float:
-        return self.daily.get(today(), {}).get(layer, {}).get("usd", 0.0)
+        d = self.daily.get(today(), {}).get(layer, {})
+        return d.get("spent", d.get("usd", 0.0))
+
+    def spent_today_prefix(self, prefix: str) -> float:
+        return sum(self.spent_today(name) for name in self.daily.get(today(), {}) if name.startswith(prefix))
 
     def as_list(self) -> list[dict[str, Any]]:
         out = []
@@ -111,7 +116,10 @@ class Chain:
             return "пропущен: большинство его ответов на такие капчи отвергли"
         limit = self.daily_limits.get(layer.name, 0)
         if limit and self.state.spent_today(layer.name) >= limit:
-            return f"исчерпан дневной лимит ${limit:g}"
+            return f"исчерпан дневной лимит {limit:g}"
+        cloud = self.daily_limits.get("cloud", 0)
+        if cloud and layer.name.startswith("vlm:") and self.state.spent_today_prefix("vlm:") >= cloud:
+            return f"исчерпан общий дневной лимит облачных моделей ${cloud:g}"
         return ""
 
     async def solve(self, task: dict[str, Any]) -> Result:

@@ -52,14 +52,18 @@ def estimate_usd(specs: list[ModelSpec], n_cases: int, votes: int) -> float | No
 
 async def run(specs: list[ModelSpec], cases: list[dict[str, Any]], votes: int = 1, concurrency: int = 3,
               transport: httpx.AsyncBaseTransport | None = None,
-              progress: Callable[[int, int], None] | None = None) -> dict[str, Any]:
+              progress: Callable[[int, int], None] | None = None,
+              stop: Callable[[], bool] | None = None) -> dict[str, Any]:
+    """`stop` is polled before every case; cases skipped after it turns true are left out of the scores."""
     gate = asyncio.Semaphore(concurrency)
     total, done = len(specs) * len(cases), 0
     results: dict[str, Any] = {}
 
-    async def one(layer: VlmLayer, case: dict[str, Any]) -> dict[str, Any]:
+    async def one(layer: VlmLayer, case: dict[str, Any]) -> dict[str, Any] | None:
         nonlocal done
         async with gate:
+            if stop and stop():
+                return None
             t0 = time.monotonic()
             try:
                 r = await layer.solve(case["task"])
@@ -74,7 +78,9 @@ async def run(specs: list[ModelSpec], cases: list[dict[str, Any]], votes: int = 
 
     for spec in specs:
         layer = VlmLayer(replace(spec, votes=votes), transport=transport)
-        rows = await asyncio.gather(*(one(layer, c) for c in cases))
+        rows = [r for r in await asyncio.gather(*(one(layer, c) for c in cases)) if r]
+        if not rows:
+            continue
         by_set: dict[str, dict[str, int]] = {}
         for row in rows:
             s = by_set.setdefault(row["set"], {"n": 0, "ok": 0})

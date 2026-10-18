@@ -132,8 +132,12 @@ async def _try_reseller(client: httpx.AsyncClient, key: str, base: str) -> Detec
     return None
 
 
+PROVIDER_TITLES = {"openai": "OpenAI", "dashscope": "DashScope (Китай)", "dashscope-intl": "DashScope", "mistral": "Mistral",
+                   "openrouter": "OpenRouter", "xai": "xAI", "groq": "Groq", "anthropic": "Anthropic", "gemini": "Google Gemini"}
+
+
 async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTransport | None = None,
-                 resellers: list[str] | None = None) -> Detected:
+                 resellers: list[str] | None = None, progress=None) -> Detected:
     """Finds who issued the key. With base_url (a reseller or self-hosted server) only that address is checked."""
     key = key.strip()
     async with httpx.AsyncClient(timeout=20, transport=transport) as client:
@@ -152,6 +156,8 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
         hinted = [p for prefix, p in PREFIX_HINTS if key.startswith(prefix)]
         order = hinted + [p for p in PROBE_ORDER if p not in hinted]
         for provider in order:
+            if progress:
+                progress(f"проверяю {PROVIDER_TITLES.get(provider, provider)}")
             try:
                 found = await _try(client, provider, key, "")
             except httpx.HTTPError:
@@ -159,6 +165,8 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
             if found:
                 return found
         for base in (local_reseller_urls() if resellers is None else resellers):
+            if progress:
+                progress(f"проверяю посредника {base.split('/')[2]}")
             try:
                 found = await _try_reseller(client, key, base)
             except httpx.HTTPError:
@@ -168,5 +176,5 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
     raise DetectError("ни один известный поставщик не принял этот ключ; если это посредник — укажите его адрес")
 
 
-def detect_sync(key: str, base_url: str = "") -> Detected:
-    return asyncio.run(detect(key, base_url))
+def detect_sync(key: str, base_url: str = "", progress=None) -> Detected:
+    return asyncio.run(detect(key, base_url, progress=progress))

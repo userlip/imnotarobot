@@ -12,6 +12,9 @@ from .providers import ModelSpec
 APP_DIR = Path(os.environ.get("CAPTCHA_STACK_HOME", Path.home() / "Library" / "Application Support" / "captcha-stack"))
 KEYCHAIN_SERVICE = "captcha-stack"
 HUMAN_PRESETS = {"2captcha": "https://api.2captcha.com", "rucaptcha": "https://api.rucaptcha.com"}
+# RuCaptcha bills and reports balance in roubles, 2Captcha in dollars
+HUMAN_CURRENCY = {"2captcha": "$", "rucaptcha": "₽"}
+HUMAN_TOPUP = {"2captcha": "https://2captcha.com/enterpage", "rucaptcha": "https://rucaptcha.com/enterpage"}
 
 
 # Secrets go through Apple's own `security` tool. An item written by the app itself is tied to that build's code
@@ -68,6 +71,8 @@ class KeyEntry:
 @dataclass
 class Config:
     client_key: str = ""
+    # programs must send client_key as their API key; without it any program on this Mac could spend the money
+    require_client_key: bool = True
     port: int = 8765
     layers: list[str] = field(default_factory=lambda: ["local", "vlm", "human"])
     ocr_min_confidence: float = 0.9
@@ -76,10 +81,15 @@ class Config:
     human_provider: str = "rucaptcha"
     human_base_url: str = ""
     human_api_key: str = ""
+    human_key_hint: str = ""
     human_timeout: float = 180.0
     human_poll_interval: float = 5.0
-    # 0 = no limit
-    human_daily_limit_usd: float = 1.0
+    # in the workers' service currency (see HUMAN_CURRENCY); 0 = no limit
+    human_daily_limit: float = 100.0
+    # warn in the menu when the workers' balance drops below this, same currency
+    human_low_balance: float = 50.0
+    # all cloud models together, USD per day; 0 = no limit. Models with unknown prices are not counted
+    cloud_daily_limit_usd: float = 1.0
     # a layer is skipped for a captcha kind once it has this many reports and fails at least half of them
     skip_after_reports: int = 5
     task_ttl: float = 600.0
@@ -94,6 +104,8 @@ class Config:
         path = path or APP_DIR / "config.json"
         raw: dict[str, Any] = json.loads(path.read_text()) if path.exists() else {}
         names = {f.name for f in fields(cls)} - {"models", "keys", "human_api_key"}
+        if "human_daily_limit_usd" in raw and "human_daily_limit" not in raw:
+            raw["human_daily_limit"] = raw["human_daily_limit_usd"]
         cfg = cls(**{k: v for k, v in raw.items() if k in names})
         cfg.keys = [KeyEntry(**k) for k in raw.get("keys", [])]
         cfg.models = [ModelSpec(**m) for m in raw.get("models", [])]

@@ -24,7 +24,7 @@ def create_app(cfg: Config | None = None, layers: list[Layer] | None = None,
             body = await request.json()
         except ValueError:
             return _error("ERROR_BAD_PARAMETERS", "body is not JSON")
-        if svc.cfg.client_key and body.get("clientKey") != svc.cfg.client_key:
+        if svc.cfg.require_client_key and svc.cfg.client_key and body.get("clientKey") != svc.cfg.client_key:
             return _error("ERROR_KEY_DOES_NOT_EXIST", "wrong clientKey")
         return body
 

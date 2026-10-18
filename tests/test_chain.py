@@ -107,3 +107,20 @@ def test_rejected_memory_is_bounded():
     for i in range(5):
         state.bad("k", "local", f"img{i}")
     assert list(state.rejected) == ["img2", "img3", "img4"]
+
+
+def test_shared_cloud_limit_covers_every_model():
+    class Paid(FakeLayer):
+        async def solve(self, task):
+            r = await super().solve(task)
+            r.cost = 0.6
+            return r
+
+    a = Paid("vlm:a", [("x", 0.95)])
+    b = Paid("vlm:b", [("y", 0.95)])
+    chain = Chain([a, b], daily_limits={"cloud": 1.0})
+    solve(chain, {**TASK, "body": "1"})
+    solve(chain, {**TASK, "body": "2"})
+    with pytest.raises(Unsolvable, match="общий дневной лимит"):
+        solve(chain, {**TASK, "body": "3"})
+    assert (a.calls, b.calls) == (2, 0)

@@ -38,7 +38,7 @@ def test_state_never_contains_secrets(ui, monkeypatch):
     c, client = ui
     from captcha_stack.discovery import Detected, ModelInfo
 
-    monkeypatch.setattr(control, "detect_sync", lambda k, b="": Detected("custom", "https://reseller.example/v1",
+    monkeypatch.setattr(control, "detect_sync", lambda k, b="", progress=None: Detected("custom", "https://reseller.example/v1",
                                                                           [ModelInfo("claude-x", True)]))
     r = client.post("/api/ui/add-key", json={"secret": "sk-reseller-supersecretvalue"}).json()
     assert r["ok"] and "посредник reseller.example" in r["message"] and "моделей с картинками: 1" in r["message"]
@@ -53,7 +53,7 @@ def test_bad_key_explains_why(ui, monkeypatch):
     _, client = ui
     from captcha_stack.discovery import DetectError
 
-    def nobody(key, base=""):
+    def nobody(key, base="", progress=None):
         raise DetectError("ни один известный поставщик не принял этот ключ")
 
     monkeypatch.setattr(control, "detect_sync", nobody)
@@ -61,18 +61,29 @@ def test_bad_key_explains_why(ui, monkeypatch):
     assert r.status_code == 400 and "не принял" in r.json()["error"]
 
 
-def test_saving_a_human_key_checks_it_and_reports_balance(ui, monkeypatch):
+def test_saving_a_human_key_checks_it_and_reports_balance_in_roubles(ui, monkeypatch):
     c, client = ui
 
     async def balance():
-        return 3.2
+        return 200.0
 
     monkeypatch.setattr(c.service, "balance", balance)
-    r = client.post("/api/ui/human", json={"provider": "rucaptcha", "key": "abc123", "limit": "2"}).json()
-    assert r["ok"] and r["message"] == "Ключ работает, баланс $3.20."
-    assert r["state"]["human"] == {"provider": "rucaptcha", "hasKey": True, "legacyKey": False, "limit": 2.0,
-                                   "status": {"ok": True, "balance": 3.2}, "spentToday": 0.0}
-    assert c.human_line() == "Люди (RuCaptcha): ✓ баланс $3.20"
+    r = client.post("/api/ui/human-key", json={"key": "abcd1234efgh"}).json()
+    assert r["ok"] and r["message"] == "Ключ работает, баланс 200.00 ₽."
+    h = r["state"]["human"]
+    assert (h["currency"], h["hint"], h["hasKey"], h["status"]) == ("₽", "abcd…efgh", True, {"ok": True, "balance": 200.0})
+    assert c.human_line() == "Люди (RuCaptcha): ✓ баланс 200.00 ₽"
+
+
+def test_low_balance_is_flagged(ui, monkeypatch):
+    c, client = ui
+
+    async def balance():
+        return 12.0
+
+    monkeypatch.setattr(c.service, "balance", balance)
+    client.post("/api/ui/human-key", json={"key": "abcd1234efgh"})
+    assert c.human_line().endswith("пора пополнить")
 
 
 def test_rejected_human_key_is_reported(ui, monkeypatch):
@@ -82,16 +93,38 @@ def test_rejected_human_key_is_reported(ui, monkeypatch):
         raise RuntimeError("getBalance: ERROR_KEY_DOES_NOT_EXIST")
 
     monkeypatch.setattr(c.service, "balance", balance)
-    r = client.post("/api/ui/human", json={"key": "wrong"})
+    r = client.post("/api/ui/human-key", json={"key": "wrong-key-1"})
     assert r.status_code == 400 and "ERROR_KEY_DOES_NOT_EXIST" in r.json()["error"]
     assert c.human_line().startswith("Люди (RuCaptcha): ⚠")
 
 
+def test_limits_save_without_touching_the_key(ui, monkeypatch):
+    c, client = ui
+    called = []
+
+    async def balance():
+        called.append(1)
+        return 1.0
+
+    monkeypatch.setattr(c.service, "balance", balance)
+    r = client.post("/api/ui/limits", json={"human": "0", "low": "30", "cloud": "2,5"}).json()
+    assert r["ok"] and r["message"] == "Лимиты сохранены: люди — без лимита, модели — $2.50 в день."
+    assert (c.cfg.human_daily_limit, c.cfg.human_low_balance, c.cfg.cloud_daily_limit_usd) == (0.0, 30.0, 2.5)
+    assert c.service.chain.daily_limits == {"human": 0.0, "cloud": 2.5} and not called
+    assert client.post("/api/ui/limits", json={"human": "-1"}).status_code == 400
+
+
+def test_switching_service_changes_currency(ui):
+    c, client = ui
+    r = client.post("/api/ui/human-provider", json={"provider": "2captcha"}).json()
+    assert r["state"]["human"]["currency"] == "$" and c.cfg.human_base_url == "https://api.2captcha.com"
+
+
 def test_solved_captchas_show_up_in_recent(ui):
     c, client = ui
-    task_id = client.post("/createTask", json={"task": {"type": "ImageToTextTask", "body": text_image("ab3k7")}}).json()["taskId"]
+    task_id = client.post("/createTask", json={"clientKey": c.cfg.client_key, "task": {"type": "ImageToTextTask", "body": text_image("ab3k7")}}).json()["taskId"]
     for _ in range(200):
-        if client.post("/getTaskResult", json={"taskId": task_id}).json().get("status") == "ready":
+        if client.post("/getTaskResult", json={"clientKey": c.cfg.client_key, "taskId": task_id}).json().get("status") == "ready":
             break
         time.sleep(0.05)
     recent = client.get("/api/ui/state").json()["recent"]
@@ -115,3 +148,51 @@ def test_key_left_by_an_older_build_asks_to_be_entered_again(tmp_path, monkeypat
     monkeypatch.setattr(config, "set_secret", lambda a, v: None)
     c.set_human(key="new")
     assert not c.legacy_human_key
+
+
+def test_journal_survives_restart_opens_and_reports(ui):
+    c, client = ui
+    task_id = client.post("/createTask", json={"clientKey": c.cfg.client_key, "task": {"type": "ImageToTextTask", "body": text_image("k7m2p")}}).json()["taskId"]
+    for _ in range(200):
+        if client.post("/getTaskResult", json={"clientKey": c.cfg.client_key, "taskId": task_id}).json().get("status") == "ready":
+            break
+        time.sleep(0.05)
+    entry = client.get(f"/api/ui/journal/{task_id}").json()
+    assert entry["summary"]["typeTitle"] == "Текст на картинке" and entry["solution"] == {"text": "k7m2p"}
+    assert "body" in entry["images"] and entry["summary"]["answer"] == "k7m2p"
+    r = client.post("/api/ui/report-wrong", json={"id": task_id}).json()
+    assert r["ok"] and r["state"]["recent"][0]["reported"]
+    row = r["state"]["stats"]["rows"][0]
+    assert (row["type"], row["layer"], row["answered"], row["bad"]) == ("Текст на картинке", "Локальная модель", 1, 1)
+    from captcha_stack.service import Service
+    reborn = Service(c.cfg)
+    assert reborn.recent[0]["id"] == task_id and reborn.recent[0]["reported"]
+    assert client.get("/api/ui/journal/123", headers={"X-UI-Token": "x"}).status_code == 403
+
+
+def test_programs_need_the_access_key(ui):
+    c, client = ui
+    task = {"type": "ImageToTextTask", "body": text_image("ab3k7")}
+    assert c.cfg.client_key.startswith("cs-")
+    assert client.post("/createTask", json={"task": task}).json()["errorCode"] == "ERROR_KEY_DOES_NOT_EXIST"
+    assert client.post("/in.php", data={"method": "base64", "body": task["body"]}).text == "ERROR_KEY_DOES_NOT_EXIST"
+    assert client.post("/createTask", json={"clientKey": c.cfg.client_key, "task": task}).json()["errorId"] == 0
+    old = c.cfg.client_key
+    r = client.post("/api/ui/access", json={"regenerate": True}).json()
+    assert r["state"]["access"]["key"] != old
+    client.post("/api/ui/access", json={"required": False})
+    assert client.post("/createTask", json={"task": task}).json()["errorId"] == 0
+
+
+def test_alerts_for_low_balance_and_limits(ui, monkeypatch):
+    c, client = ui
+
+    async def balance():
+        return 10.0
+
+    monkeypatch.setattr(c.service, "balance", balance)
+    client.post("/api/ui/human-key", json={"key": "abcd1234efgh"})
+    c.cfg.cloud_daily_limit_usd = 0.001
+    c.service.chain.state.answered("k", "vlm:x", 0.002)
+    ids = [a for a, _ in c.alerts()]
+    assert "low-balance" in ids and "cloud-limit" in ids

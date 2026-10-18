@@ -78,3 +78,37 @@ def test_venusbench_conversion(tmp_path):
     assert [(c["task"]["type"], c["expected"]) for c in cases] == [
         ("ImageToTextTask", {"text": "1712"}), ("CoordinatesTask", {"boxes": [[1, 1, 9, 9]], "inorder": False})]
     assert cases[0]["task"]["comment"] == "Enter the code"
+
+
+def test_stop_leaves_out_cases_not_started():
+    cases = testset.generated(2)
+
+    def handler(request):
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"text": "x"}'}}]})
+
+    calls = []
+    spec = ModelSpec(name="m", provider="openai", model="m", api_key="k")
+    results = asyncio.run(bench.run([spec], cases, concurrency=1, transport=httpx.MockTransport(handler),
+                                    progress=lambda d, t: calls.append(d), stop=lambda: len(calls) >= 3))
+    assert sum(s["n"] for s in results["m"]["by_set"].values()) == 3
+
+
+def test_download_builds_a_usable_set(tmp_path):
+    instruction = [{"images": ["../images/OCR/a.png"], "captcha_type": "OCR",
+                    "messages": [{"role": "user", "content": "Enter code"}],
+                    "action_raw": "Type(content='42')", "action_raw_rect": [], "inorder": True}]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if "/api/datasets/" in path:
+            folder = path.split("/tree/main/")[1]
+            files = {"instruction": ["instruction/VenusBench-CAPTCHA.json"], "images/OCR": ["images/OCR/a.png"]}.get(folder, [])
+            return httpx.Response(200, json=[{"type": "file", "path": f} for f in files])
+        if path.endswith("VenusBench-CAPTCHA.json"):
+            return httpx.Response(200, json=instruction)
+        return httpx.Response(200, content=b"png")
+
+    seen = []
+    n = testset.download("venusbench", tmp_path / "venusbench", progress=lambda d, t: seen.append((d, t)),
+                         transport=httpx.MockTransport(handler))
+    assert n == 1 and seen[-1] == (2, 2) and testset.count_cases(tmp_path / "venusbench") == 1

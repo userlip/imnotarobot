@@ -6,6 +6,23 @@ import httpx
 
 from .base import Layer, Result, Unsolvable
 
+ERROR_TEXT = {
+    "ERROR_KEY_DOES_NOT_EXIST": "ключ не подходит",
+    "ERROR_WRONG_USER_KEY": "ключ не подходит",
+    "ERROR_ZERO_BALANCE": "на балансе нет денег",
+    "ERROR_NO_SLOT_AVAILABLE": "сервис перегружен, повторите позже",
+    "ERROR_CAPTCHA_UNSOLVABLE": "работники не смогли решить",
+    "ERROR_IP_NOT_ALLOWED": "в настройках сервиса запрещён ваш IP",
+    "ERROR_IP_BANNED": "ваш IP заблокирован сервисом",
+    "ERROR_TOO_BIG_CAPTCHA_FILESIZE": "картинка слишком большая",
+    "ERROR_ZERO_CAPTCHA_FILESIZE": "картинка пустая",
+    "ERROR_WRONG_FILE_EXTENSION": "неподходящий формат картинки",
+    "ERROR_IMAGE_TYPE_NOT_SUPPORTED": "неподходящий формат картинки",
+    "ERROR_TASK_NOT_SUPPORTED": "сервис не решает такой вид капчи",
+    "ERROR_BAD_PARAMETERS": "сервису не хватило данных о капче",
+    "ERROR_PAGEURL": "не указан адрес страницы с капчей",
+}
+
 # Token captchas (reCAPTCHA, hCaptcha, Turnstile…) are only solvable here, so any task type is forwarded as is.
 LOCAL_ONLY_TYPES = frozenset({"SlideMatchTask"})
 
@@ -34,7 +51,8 @@ class HumanLayer(Layer):
         r = await client.post(f"{self.base_url}/{method}", json={"clientKey": self.api_key, **body})
         j = r.json()
         if j.get("errorId"):
-            raise Unsolvable(f"{method}: {j.get('errorCode')} {j.get('errorDescription', '')}".strip())
+            code = j.get("errorCode") or ""
+            raise Unsolvable(f"{ERROR_TEXT.get(code, j.get('errorDescription') or 'ошибка сервиса')} ({code})")
         return j
 
     async def solve(self, task: dict[str, Any]) -> Result:

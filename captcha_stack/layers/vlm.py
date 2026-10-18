@@ -13,6 +13,7 @@ import asyncio
 import json
 import math
 import statistics
+import time
 from collections import Counter
 from typing import Any, Callable
 
@@ -74,6 +75,10 @@ def last_json(text: str) -> dict[str, Any]:
     raise Unsolvable(f"модель ответила не в нужном виде: {text[-150:]!r}")
 
 
+# last failure per model layer, kept across rebuilds of the layer list: (unix time, message)
+LAST_ERRORS: dict[str, tuple[float, str]] = {}
+
+
 class VlmLayer(Layer):
     task_types = frozenset({"ImageToTextTask", "GridTask", "CoordinatesTask"})
 
@@ -108,6 +113,10 @@ class VlmLayer(Layer):
         if votes > 2 and not (len(answers) == 2 and same(answers[0], answers[1])):
             await asyncio.gather(*(one() for _ in range(votes - asked)))
             asked = votes
+        if errors:
+            LAST_ERRORS[self.name] = (time.time(), errors[-1][:300])
+        else:
+            LAST_ERRORS.pop(self.name, None)
         if not answers:
             raise Unsolvable("; ".join(dict.fromkeys(errors)) or "нет ответа")
         final, support = _consensus(task["type"], answers, same)

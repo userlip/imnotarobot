@@ -89,3 +89,9 @@ def test_reseller_from_local_codex_config_is_tried_after_providers():
     assert (found.provider, found.base_url) == ("custom", "https://reseller.example/v1")
     assert [(m.id, m.vision) for m in found.models] == [("claude-opus-5-5", True), ("gpt-6-luna", True), ("glm-5.3", False)]
     assert calls[-1] == ("custom", "/v1/models")
+
+
+def test_progress_names_every_provider_tried():
+    seen: list = []
+    asyncio.run(detect("sk-ant-x", transport=fake_world("anthropic", {"data": []}, []), progress=seen.append))
+    assert seen == ["проверяю Anthropic"]

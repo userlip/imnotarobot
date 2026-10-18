@@ -14,7 +14,7 @@ import uvicorn
 
 from . import config as config_mod
 from . import bench, testset
-from .config import HUMAN_PRESETS, Config, KeyEntry
+from .config import HUMAN_CURRENCY, HUMAN_PRESETS, Config, KeyEntry
 from .discovery import detect_sync
 from .providers import PRESETS, ModelSpec
 from .server import create_app
@@ -25,25 +25,54 @@ LAYER_TITLES = {"local": "Локальная модель", "human": "Люди"}
 HUMAN_TITLES = {"rucaptcha": "RuCaptcha", "2captcha": "2Captcha"}
 
 
+def money(value: float, currency: str) -> str:
+    return f"{value:.2f} ₽" if currency == "₽" else f"${value:.2f}"
+
+
 class Controller:
     def __init__(self, cfg: Config | None = None):
         self.cfg = cfg or Config.load()
         self._explicit_layers()
+        if self.cfg.require_client_key and not self.cfg.client_key:
+            self.cfg.client_key = "cs-" + secrets.token_urlsafe(18)
+            self.cfg.save()
         self.service = Service(self.cfg)
         self._server: uvicorn.Server | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self.bench: dict = {}
+        self.detecting = ""
+        self.model_tests: dict[str, dict] = {}
+        self.dataset_jobs: dict[str, dict] = {}
+        self.port: int | None = None
+        self.port_note = ""
         self.human_status: dict = {}
         self.legacy_human_key = not self.cfg.human_api_key and config_mod.legacy_secret_exists("human")
         self.ui_token = secrets.token_urlsafe(24)
 
     # --- server ---------------------------------------------------------------
+    def free_port(self) -> int:
+        """The configured port, or the next free one if another program holds it."""
+        import socket
+
+        for port in range(self.cfg.port, self.cfg.port + 20):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(("127.0.0.1", port))
+                    return port
+                except OSError:
+                    continue
+        raise RuntimeError(f"порты {self.cfg.port}–{self.cfg.port + 19} заняты другими программами")
+
     def start_server(self) -> None:
+        port = self.free_port()
+        if port != self.cfg.port:
+            self.port_note = f"Порт {self.cfg.port} занят другой программой — работаю на {port}. Направьте программы сюда."
+        self.port = port
         app = create_app(service=self.service)
         from .ui import add_ui_routes
 
         add_ui_routes(app, self)
-        self._server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=self.cfg.port, log_level="warning"))
+        self._server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
 
         def run():
             self._loop = asyncio.new_event_loop()
@@ -57,7 +86,7 @@ class Controller:
 
     @property
     def address(self) -> str:
-        return f"http://127.0.0.1:{self.cfg.port}"
+        return f"http://127.0.0.1:{self.port or self.cfg.port}"
 
     def _explicit_layers(self) -> None:
         """The menu switches models one by one, so the catch-all "vlm" layer is spelled out per model."""
@@ -83,8 +112,20 @@ class Controller:
     def today_line(self) -> str:
         day = self.service.today()
         solved = int(sum(v.get("solved", 0) for v in day.values()))
-        usd = sum(v.get("usd", 0.0) for v in day.values())
-        return f"Сегодня: решено {solved} · ${usd:.3f}"
+        return f"Сегодня: решено {solved} · {self.spend_text()}"
+
+    def spend_today(self) -> dict[str, float]:
+        """Today's spend split by currency: cloud models in dollars, workers in their service's currency."""
+        state = self.service.chain.state
+        return {"cloud_usd": state.spent_today_prefix("vlm:"), "human": state.spent_today("human")}
+
+    def spend_text(self) -> str:
+        s = self.spend_today()
+        cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
+        parts = [f"модели ${s['cloud_usd']:.3f}"]
+        if self.cfg.human_api_key or s["human"]:
+            parts.append(f"люди {money(s['human'], cur)}")
+        return ", ".join(parts)
 
     def layer_items(self) -> list[tuple[str, str, bool]]:
         """(layer id, title, enabled) for every layer that can be switched."""
@@ -139,12 +180,15 @@ class Controller:
             self.cfg.human_provider = provider
             self.cfg.human_base_url = HUMAN_PRESETS[provider]
         if key is not None:
-            config_mod.set_secret("human", key.strip())
+            key = key.strip()
+            config_mod.set_secret("human", key)
+            self.cfg.human_key_hint = f"{key[:4]}…{key[-4:]}" if key else ""
             self.legacy_human_key = False
+            self.human_status = {}
         if daily_limit is not None:
             if daily_limit < 0:
                 raise ValueError("лимит не может быть отрицательным")
-            self.cfg.human_daily_limit_usd = daily_limit
+            self.cfg.human_daily_limit = daily_limit
         self._apply()
 
     def set_paused(self, paused: bool) -> None:
@@ -168,7 +212,9 @@ class Controller:
         if not self.cfg.human_api_key:
             return f"Люди ({name}): введите ключ ещё раз" if self.legacy_human_key else f"Люди ({name}): нет ключа"
         if st.get("ok"):
-            return f"Люди ({name}): ✓ баланс ${st['balance']:.2f}"
+            cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
+            low = " — пора пополнить" if st["balance"] < self.cfg.human_low_balance else ""
+            return f"Люди ({name}): ✓ баланс {money(st['balance'], cur)}{low}"
         if st:
             return f"Люди ({name}): ⚠ {st.get('error', '')[:40]}"
         return f"Люди ({name}): ключ есть"
@@ -188,7 +234,11 @@ class Controller:
         secret = secret.strip()
         if not secret:
             raise ValueError("пустой ключ")
-        found = detect_sync(secret, base_url.strip())
+        self.detecting = "начинаю поиск поставщика"
+        try:
+            found = detect_sync(secret, base_url.strip(), progress=lambda text: setattr(self, "detecting", text))
+        finally:
+            self.detecting = ""
         taken = {k.name for k in self.cfg.keys}
         base_name = urlparse(found.base_url).hostname or "custom" if found.provider == "custom" else found.provider
         name = base_name if base_name not in taken else next(
@@ -259,9 +309,11 @@ class Controller:
         n = len(self.bench_cases())
         return n * len(specs), bench.estimate_usd(specs, n, votes)
 
-    def run_bench(self, specs: list[ModelSpec], votes: int = 1, progress=None) -> Path:
+    def run_bench(self, specs: list[ModelSpec], votes: int = 1, progress=None, stop=None) -> Path:
         cases = self.bench_cases()
-        results = asyncio.run(bench.run(specs, cases, votes=votes, progress=progress))
+        results = asyncio.run(bench.run(specs, cases, votes=votes, progress=progress, stop=stop))
+        if not results:
+            raise RuntimeError("сравнение остановлено до первого ответа")
         stamp = time.strftime("%Y%m%d-%H%M%S")
         out = Path(config_mod.APP_DIR) / "reports" / f"compare-{stamp}.html"
         (out.with_suffix(".json")).parent.mkdir(parents=True, exist_ok=True)
@@ -276,12 +328,13 @@ class Controller:
         if not specs:
             raise ValueError("нет моделей с картинками для сравнения")
         runs, _ = self.bench_estimate(specs)
-        state = {"running": True, "done": 0, "total": runs, "key": key_name, "started": time.time()}
+        state = {"running": True, "done": 0, "total": runs, "key": key_name, "started": time.time(), "stopping": False}
         self.bench = state
 
         def work():
             try:
-                report = self.run_bench(specs, progress=lambda d, t: state.update(done=d, total=t))
+                report = self.run_bench(specs, progress=lambda d, t: state.update(done=d, total=t),
+                                        stop=lambda: state["stopping"])
                 results = json.loads(report.with_suffix(".json").read_text())
                 state["report"] = str(report)
                 state["rows"] = [{"name": n, "model": results[n]["model"], "accuracy": results[n]["accuracy"],
@@ -295,6 +348,113 @@ class Controller:
 
         threading.Thread(target=work, daemon=True, name="captcha-stack-bench").start()
         return state
+
+    def test_model(self, key_name: str, model_id: str) -> dict:
+        """One text, one click and one grid captcha with a single ask each: does this model work at all, how fast."""
+        spec = next((s for s in self.bench_specs(key_name) if s.model == model_id), None)
+        if spec is None:
+            entry = self.key(key_name)
+            spec = ModelSpec(name=f"{key_name}/{model_id}", provider=entry.provider, base_url=entry.base_url,
+                             model=model_id, key=key_name, api_key=config_mod.get_secret(f"key:{key_name}"))
+        cases = [c for c in testset.generated(1, seed=11) if not c["id"].startswith("gen-math")]
+        rows = asyncio.run(bench.run([spec], cases, votes=1))[spec.name]["rows"]
+        result = {"at": time.time(), "ok": sum(r["ok"] for r in rows), "n": len(rows),
+                  "seconds": round(sum(r["seconds"] for r in rows) / len(rows), 1),
+                  "error": next((r["error"] for r in rows if r["error"]), ""),
+                  "details": [{"set": r["set"].replace("сгенерированные: ", ""), "ok": r["ok"], "error": r["error"]} for r in rows]}
+        self.model_tests[spec.name] = result
+        return result
+
+    def set_access(self, required: bool | None = None, regenerate: bool = False) -> None:
+        if required is not None:
+            self.cfg.require_client_key = required
+        if regenerate or (self.cfg.require_client_key and not self.cfg.client_key):
+            self.cfg.client_key = "cs-" + secrets.token_urlsafe(18)
+        self._apply()
+
+    def check_connection(self) -> dict:
+        """Sends a generated text captcha through the app's own 2Captcha-style API, the way a program would."""
+        import httpx
+
+        case = next(c for c in testset.generated(1, seed=5) if c["task"]["type"] == "ImageToTextTask")
+        started = time.time()
+        with httpx.Client(base_url=self.address, timeout=10) as client:
+            created = client.post("/createTask", json={"clientKey": self.cfg.client_key, "task": case["task"]}).json()
+            if created.get("errorId"):
+                return {"ok": False, "error": created.get("errorDescription") or created.get("errorCode")}
+            while time.time() - started < 120:
+                r = client.post("/getTaskResult", json={"clientKey": self.cfg.client_key, "taskId": created["taskId"]}).json()
+                if r.get("status") != "processing":
+                    break
+                time.sleep(0.3)
+        if r.get("errorId"):
+            return {"ok": False, "error": r.get("errorDescription") or r.get("errorCode")}
+        titles = {x.name: x.title or x.name for x in self.service.chain.layers}
+        return {"ok": True, "seconds": round(time.time() - started, 2), "layer": titles.get(r.get("layer"), r.get("layer")),
+                "correct": r.get("solution", {}).get("text") == case["expected"]["text"]}
+
+    def alerts(self) -> list[tuple[str, str]]:
+        """(id, text) of things worth a notification right now; the menu shows each id once until it clears."""
+        out = []
+        cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
+        st = self.human_status or {}
+        if st.get("ok") and st["balance"] < self.cfg.human_low_balance:
+            out.append(("low-balance", f"На {HUMAN_TITLES.get(self.cfg.human_provider)} осталось {money(st['balance'], cur)} — пора пополнить."))
+        limit = self.cfg.human_daily_limit
+        if limit and self.service.chain.state.spent_today("human") >= limit:
+            out.append(("human-limit", f"Люди: исчерпан дневной лимит {money(limit, cur)}. До завтра капчи им не отправляются."))
+        cloud = self.cfg.cloud_daily_limit_usd
+        if cloud and self.spend_today()["cloud_usd"] >= cloud:
+            out.append(("cloud-limit", f"Облачные модели: исчерпан дневной лимит ${cloud:g}."))
+        from .layers.vlm import LAST_ERRORS
+
+        for name, (_, msg) in LAST_ERRORS.items():
+            out.append((f"model-error:{name}:{msg[:40]}", f"Модель {name[4:]} ошибается: {msg[:120]}"))
+        if self.bench.get("finished") and not self.bench.get("running"):
+            best = (self.bench.get("rows") or [{}])[0].get("model")
+            text = f"Сравнение моделей готово. Лучшая: {best}." if best else "Сравнение моделей закончилось."
+            out.append((f"bench:{self.bench['finished']}", self.bench.get("error") or text))
+        return out
+
+    def stop_bench(self) -> None:
+        if self.bench.get("running"):
+            self.bench["stopping"] = True
+
+    # --- test sets ------------------------------------------------------------------
+    def datasets(self) -> list[dict]:
+        root = Path(config_mod.APP_DIR) / "testsets"
+        out = []
+        for name, info in testset.DOWNLOADABLE.items():
+            have = testset.count_cases(root / name)
+            out.append({"name": name, **{k: v for k, v in info.items() if k != "files"}, "installed": have,
+                        "job": self.dataset_jobs.get(name, {})})
+        return out
+
+    def download_dataset(self, name: str) -> None:
+        if name not in testset.DOWNLOADABLE:
+            raise ValueError(f"набора {name} нет")
+        if self.dataset_jobs.get(name, {}).get("running"):
+            raise ValueError("уже скачивается")
+        job = {"running": True, "done": 0, "total": 0}
+        self.dataset_jobs[name] = job
+
+        def work():
+            try:
+                testset.download(name, Path(config_mod.APP_DIR) / "testsets" / name,
+                                 progress=lambda d, t: job.update(done=d, total=t))
+            except Exception as e:
+                job["error"] = str(e)[:300]
+            job["running"] = False
+
+        threading.Thread(target=work, daemon=True, name=f"download-{name}").start()
+
+    def remove_dataset(self, name: str) -> None:
+        import shutil
+
+        target = Path(config_mod.APP_DIR) / "testsets" / name
+        if name in testset.DOWNLOADABLE and target.exists():
+            shutil.rmtree(target)
+        self.dataset_jobs.pop(name, None)
 
     def promote(self, model_names: list[str]) -> None:
         """Puts the given models first among the vision layers, in this order."""

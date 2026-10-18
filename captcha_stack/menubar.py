@@ -1,3 +1,4 @@
+import functools
 import subprocess
 import threading
 from pathlib import Path
@@ -14,14 +15,20 @@ def install_edit_menu() -> None:
     from AppKit import NSApplication, NSMenu, NSMenuItem
 
     app = NSApplication.sharedApplication()
-    main = app.mainMenu() or NSMenu.alloc().init()
-    edit = NSMenu.alloc().initWithTitle_("Edit")
-    for title, action, key in [("Undo", "undo:", "z"), ("Redo", "redo:", "Z"), ("Cut", "cut:", "x"),
-                               ("Copy", "copy:", "c"), ("Paste", "paste:", "v"), ("Select All", "selectAll:", "a")]:
+    main = NSMenu.alloc().init()
+    app_menu = NSMenu.alloc().initWithTitle_("Captcha Stack")
+    app_menu.addItemWithTitle_action_keyEquivalent_("О программе Captcha Stack", "orderFrontStandardAboutPanel:", "")
+    app_menu.addItem_(NSMenuItem.separatorItem())
+    app_menu.addItemWithTitle_action_keyEquivalent_("Скрыть окно", "hide:", "h")
+    app_menu.addItemWithTitle_action_keyEquivalent_("Выйти из Captcha Stack", "terminate:", "q")
+    edit = NSMenu.alloc().initWithTitle_("Правка")
+    for title, action, key in [("Отменить", "undo:", "z"), ("Повторить", "redo:", "Z"), ("Вырезать", "cut:", "x"),
+                               ("Копировать", "copy:", "c"), ("Вставить", "paste:", "v"), ("Выбрать всё", "selectAll:", "a")]:
         edit.addItemWithTitle_action_keyEquivalent_(title, action, key)
-    window = NSMenu.alloc().initWithTitle_("Window")
-    window.addItemWithTitle_action_keyEquivalent_("Close", "performClose:", "w")
-    for menu in (edit, window):
+    window = NSMenu.alloc().initWithTitle_("Окно")
+    window.addItemWithTitle_action_keyEquivalent_("Закрыть", "performClose:", "w")
+    window.addItemWithTitle_action_keyEquivalent_("Свернуть", "performMiniaturize:", "m")
+    for menu in (app_menu, edit, window):
         holder = NSMenuItem.alloc().init()
         holder.setSubmenu_(menu)
         main.addItem_(holder)
@@ -36,19 +43,39 @@ def copy_to_clipboard(text: str) -> None:
     subprocess.run(["pbcopy"], input=text.encode(), check=False)
 
 
+@functools.cache
+def _window_delegate_class():
+    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+    from Foundation import NSObject
+
+    class WindowDelegate(NSObject):
+        def windowWillClose_(self, notification):
+            # back to a pure menu bar app: no Dock icon once the window is gone
+            NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
+
+    return WindowDelegate
+
+
 class SettingsWindow:
-    """A native window showing the settings page served by the app itself."""
+    """A native window showing the settings page served by the app itself.
+
+    While it is open the app becomes a regular one (Dock icon, Cmd+Tab), otherwise the window is lost behind other
+    apps' windows with no way to bring it back.
+    """
 
     def __init__(self, url: str):
         self.url = url
         self.window = None
+        self.delegate = None
 
     def show(self) -> None:
-        from AppKit import (NSApplication, NSBackingStoreBuffered, NSMakeRect, NSWindow, NSWindowStyleMaskClosable,
-                            NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled)
+        from AppKit import (NSApplication, NSApplicationActivationPolicyRegular, NSBackingStoreBuffered, NSMakeRect,
+                            NSWindow, NSWindowStyleMaskClosable, NSWindowStyleMaskMiniaturizable,
+                            NSWindowStyleMaskResizable, NSWindowStyleMaskTitled)
         from Foundation import NSURL, NSURLRequest
         from WebKit import WKWebView, WKWebViewConfiguration
 
+        app = NSApplication.sharedApplication()
         if self.window is None:
             style = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
                      | NSWindowStyleMaskMiniaturizable)
@@ -58,13 +85,17 @@ class SettingsWindow:
             w.setReleasedWhenClosed_(False)
             w.setMinSize_((560, 420))
             w.center()
+            w.setFrameAutosaveName_("CaptchaStackSettings")
             web = WKWebView.alloc().initWithFrame_configuration_(w.contentView().bounds(),
                                                                  WKWebViewConfiguration.alloc().init())
             web.setAutoresizingMask_(2 | 16)  # width and height follow the window
             w.setContentView_(web)
             web.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(self.url)))
+            self.delegate = _window_delegate_class().alloc().init()
+            w.setDelegate_(self.delegate)
             self.window = w
-        NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
+        app.activateIgnoringOtherApps_(True)
         self.window.makeKeyAndOrderFront_(None)
 
 
@@ -110,6 +141,7 @@ class MenuBarApp(rumps.App):
             if not self.c.cfg.keys and not self.c.cfg.human_api_key:
                 self.open_window()
         self.today.title = self.c.today_line()
+        self.notify_new_alerts()
         job = self.c.bench
         self.title = f"{job['done']}/{job['total']}" if job.get("running") else None
         signature = (self.c.service.paused, self.c.human_line(), tuple(
@@ -117,6 +149,14 @@ class MenuBarApp(rumps.App):
         if signature != getattr(self, "_signature", None):
             self._signature = signature
             self.rebuild()
+
+    def notify_new_alerts(self) -> None:
+        current = dict(self.c.alerts())
+        seen = getattr(self, "_seen_alerts", set())
+        for alert_id, text in current.items():
+            if alert_id not in seen:
+                rumps.notification("Captcha Stack", "", text)
+        self._seen_alerts = set(current)
 
     def open_window(self, _=None) -> None:
         self.window.show()

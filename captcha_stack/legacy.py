@@ -76,7 +76,7 @@ def add_legacy_routes(app: FastAPI, svc: Service) -> None:
         return PlainTextResponse(f"OK|{request_value}" if status == 1 else str(request_value))
 
     def key_ok(p: dict[str, Any]) -> bool:
-        return not svc.cfg.client_key or p.get("key") == svc.cfg.client_key
+        return not (svc.cfg.require_client_key and svc.cfg.client_key) or p.get("key") == svc.cfg.client_key
 
     @app.api_route("/in.php", methods=["GET", "POST"])
     async def in_php(request: Request):

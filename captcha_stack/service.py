@@ -1,7 +1,9 @@
 import asyncio
 import itertools
+import json
 import time
 from collections import deque
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,6 +26,25 @@ def build_layers(cfg: Config) -> list[Layer]:
     return out
 
 
+JOURNAL_KEEP = 300
+
+
+def _short_answer(solution: dict[str, Any]) -> str:
+    if "text" in solution:
+        return str(solution["text"])[:40]
+    if "click" in solution:
+        return "клетки " + ", ".join(map(str, solution["click"]))
+    if "coordinates" in solution:
+        return "; ".join(f"{p['x']},{p['y']}" for p in solution["coordinates"])[:60]
+    if "x" in solution:
+        return f"сдвиг {solution['x']}"
+    return "токен получен"
+
+
+def limits(cfg: Config) -> dict[str, float]:
+    return {"human": cfg.human_daily_limit, "cloud": cfg.cloud_daily_limit_usd}
+
+
 @dataclass
 class Job:
     task: dict[str, Any]
@@ -39,18 +60,64 @@ class Service:
     def __init__(self, cfg: Config, layers: list[Layer] | None = None):
         self.cfg = cfg
         self.chain = Chain(layers if layers is not None else build_layers(cfg),
-                           State(cfg.state_path, cfg.skip_after_reports), {"human": cfg.human_daily_limit_usd})
+                           State(cfg.state_path, cfg.skip_after_reports), limits(cfg))
         self.jobs: dict[int, Job] = {}
         self._ids = itertools.count(int(time.time()))
         self._running: set[asyncio.Task] = set()
         self.paused = False
         self.recent: deque[dict[str, Any]] = deque(maxlen=100)
+        self.journal_dir = Path(cfg.state_path).parent / "journal"
+        self._load_journal()
+
+    def _load_journal(self) -> None:
+        """Brings back the summaries of the latest solved captchas after a restart."""
+        files = sorted(self.journal_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in files[:JOURNAL_KEEP]:
+            try:
+                entry = json.loads(path.read_text())
+            except (ValueError, OSError):
+                continue
+            self.recent.append(entry["summary"])
+        for path in files[JOURNAL_KEEP:]:
+            path.unlink(missing_ok=True)
+
+    def journal_entry(self, entry_id: int) -> dict[str, Any] | None:
+        path = self.journal_dir / f"{int(entry_id)}.json"
+        try:
+            return json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
+
+    def _write_journal(self, entry_id: int, job: "Job", summary: dict[str, Any]) -> None:
+        r = job.result
+        record = {"summary": summary, "task": job.task, "solution": r.solution if r else None,
+                  "meta": {k: v for k, v in (r.meta if r else {}).items() if k in ("tried", "answers", "remote_task_id", "method", "agreed_with")}}
+        try:
+            self.journal_dir.mkdir(parents=True, exist_ok=True)
+            (self.journal_dir / f"{entry_id}.json").write_text(json.dumps(record, ensure_ascii=False, default=str))
+        except OSError:
+            pass
+
+    async def report_entry(self, entry_id: int) -> dict[str, Any]:
+        """Marks a journal answer as wrong: the layer is skipped for this image and the workers' service is told."""
+        entry = self.journal_entry(entry_id)
+        if not entry or entry.get("solution") is None:
+            raise KeyError(entry_id)
+        s = entry["summary"]
+        result = Result(entry["solution"], s.get("confidence", 0), s["layer"], meta=entry.get("meta", {}))
+        await self.chain.report_incorrect(entry["task"], result)
+        s["reported"] = True
+        for item in self.recent:
+            if item.get("id") == entry_id:
+                item["reported"] = True
+        (self.journal_dir / f"{entry_id}.json").write_text(json.dumps(entry, ensure_ascii=False, default=str))
+        return s
 
     def reconfigure(self, cfg: Config) -> None:
         """Swaps layers and limits; statistics and open tasks are kept."""
         self.cfg = cfg
         self.chain.layers = build_layers(cfg)
-        self.chain.daily_limits = {"human": cfg.human_daily_limit_usd}
+        self.chain.daily_limits = limits(cfg)
         self.chain.state.skip_after_reports = cfg.skip_after_reports
 
     def supports(self, task_type: str) -> bool:
@@ -63,12 +130,12 @@ class Service:
         task_id = next(self._ids)
         job = Job(task)
         self.jobs[task_id] = job
-        t = asyncio.create_task(self._run(job))
+        t = asyncio.create_task(self._run(job, task_id))
         self._running.add(t)
         t.add_done_callback(self._running.discard)
         return task_id
 
-    async def _run(self, job: Job) -> None:
+    async def _run(self, job: Job, task_id: int = 0) -> None:
         started = time.time()
         try:
             if self.paused:
@@ -79,13 +146,17 @@ class Service:
         finally:
             job.done.set()
             r = job.result
-            self.recent.appendleft({
-                "at": started, "seconds": round(time.time() - started, 2), "type": job.task.get("type"),
+            summary = {
+                "id": task_id, "at": started, "seconds": round(time.time() - started, 2), "type": job.task.get("type"),
                 "layer": r.layer if r else "",
                 "layerTitle": next((x.title for x in self.chain.layers if r and x.name == r.layer), r.layer if r else ""), "confidence": round(r.confidence, 2) if r else 0,
                 "cost": r.cost if r else 0.0, "lowConfidence": bool(r and r.meta.get("low_confidence")),
                 "error": job.error, "notes": (r.meta.get("tried", []) if r else []),
-            })
+                "answer": _short_answer(r.solution) if r else "", "reported": False,
+            }
+            self.recent.appendleft(summary)
+            if task_id:
+                self._write_journal(task_id, job, summary)
 
     async def report(self, task_id: int, retry: bool = False) -> int | None:
         job = self.jobs.get(task_id)

@@ -19,26 +19,34 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
-main { max-width: 860px; margin: 0 auto; padding: 20px 20px 60px; }
-header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+main { max-width: 900px; margin: 0 auto; padding: 20px 20px 60px; }
+header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+nav { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; position: sticky; top: 0; background: var(--bg); padding: 6px 0; z-index: 3; }
+nav a { color: var(--mut); text-decoration: none; padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+nav a:hover { background: var(--card); color: var(--fg); }
 h1 { font-size: 20px; margin: 0; }
-h2 { font-size: 15px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 4px; scroll-margin-top: 50px; }
+h3 { font-size: 13px; margin: 14px 0 6px; color: var(--mut); font-weight: 600; }
 .sub { color: var(--mut); font-size: 13px; margin: 0 0 12px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .grow { flex: 1; min-width: 0; }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
 .pill.bad { background: var(--bad-soft); color: var(--bad); } .pill.mut { background: var(--bg); color: var(--mut); }
 .stat { color: var(--mut); } .stat b { color: var(--fg); }
-button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-button:hover { border-color: var(--acc); }
+button, a.button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+button:hover, a.button:hover { border-color: var(--acc); }
 button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
 button.danger { color: var(--bad); }
-button.icon { padding: 4px 8px; }
+button.small { padding: 3px 9px; font-size: 12px; }
 button:disabled { opacity: .5; cursor: default; }
-input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0; }
+input, select, textarea { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0; }
 input:focus, select:focus { outline: 2px solid var(--acc-soft); border-color: var(--acc); }
+label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--mut); white-space: nowrap; }
+.limits { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end; }
+.answer { font-size: 18px; font-weight: 600; font-family: ui-monospace, Menlo, monospace; margin: 4px 0; }
+details summary { cursor: pointer; color: var(--mut); font-size: 13px; }
 .layer { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
 .layer:first-of-type { border-top: 0; }
 .num { width: 22px; height: 22px; border-radius: 50%; background: var(--acc-soft); color: var(--acc); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
@@ -50,24 +58,32 @@ input:focus, select:focus { outline: 2px solid var(--acc-soft); border-color: va
 .switch input:checked + span { background: var(--ok); }
 .switch input:checked + span::after { transform: translateX(15px); }
 .key { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
-.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 12px; margin: 10px 0; max-height: 220px; overflow: auto; }
+.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 12px; margin: 8px 0; max-height: 200px; overflow: auto; }
 .models label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.enabled-model { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; color: var(--mut); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
 td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr.click { cursor: pointer; } tr.click:hover td { background: var(--bg); }
 .bar { height: 8px; background: var(--bg); border-radius: 999px; overflow: hidden; margin: 8px 0; }
 .bar i { display: block; height: 100%; background: var(--acc); transition: width .3s; }
 .empty { color: var(--mut); padding: 8px 0; }
-.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s;
-  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; max-width: 90vw; pointer-events: none; z-index: 9; }
-#toast.show { opacity: 1; transform: translateX(-50%); }
-#toast.bad { background: var(--bad); color: #fff; }
-#modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; z-index: 8; }
-#modal[hidden] { display: none; }
-#modal .card { max-width: 420px; margin: 16px; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; word-break: break-all; }
+pre { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; font-size: 12px; margin: 6px 0; white-space: pre-wrap; word-break: break-all; }
+.banner { border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; }
+.banner.warn { background: var(--warn-soft); color: var(--warn); }
 .hint { background: var(--acc-soft); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
 .hint ol { margin: 6px 0 0; padding-left: 20px; }
+#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s;
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; max-width: 90vw; pointer-events: none; z-index: 20; }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+#toast.bad { background: var(--bad); color: #fff; }
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; z-index: 10; padding: 16px; }
+.overlay[hidden] { display: none; }
+.overlay .card { max-width: 640px; width: 100%; max-height: 90vh; overflow: auto; margin: 0; }
+.captcha-img { max-width: 100%; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.spinner { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--acc); border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 560px) { .models { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -79,80 +95,144 @@ td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top
     <span class="stat grow" id="today"></span>
     <button id="pauseBtn"></button>
   </header>
+  <nav>
+    <a href="#s-order">Порядок</a><a href="#s-models">Облачные модели</a><a href="#s-human">Люди</a>
+    <a href="#s-limits">Лимиты</a><a href="#s-connect">Подключение</a><a href="#s-bench">Сравнение</a>
+    <a href="#s-journal">Журнал</a><a href="#s-stats">Статистика</a>
+  </nav>
 
+  <div class="banner warn" id="portNote" hidden></div>
   <div class="hint" id="firstRun" hidden>
     <b>С чего начать</b>
     <ol>
-      <li>Добавьте ключ облачной модели ниже — поставщик определится сам — и отметьте модели.</li>
+      <li>Добавьте ключ облачной модели — поставщик определится сам — и отметьте модели.</li>
       <li>По желанию добавьте ключ RuCaptcha: люди решат то, что не смогли модели.</li>
-      <li>Направьте свою программу на адрес <span class="mono" id="addrHint"></span> вместо адреса 2Captcha.</li>
+      <li>Подключите свою программу: адрес и ключ доступа — в разделе «Подключение».</li>
     </ol>
   </div>
 
   <section class="card">
-    <h2>Порядок решения</h2>
-    <p class="sub">Капча идёт сверху вниз: следующий слой включается, если предыдущий не справился или не уверен.</p>
+    <h2 id="s-order">Порядок решения</h2>
+    <p class="sub">Капча идёт сверху вниз: следующий слой включается, если предыдущий не справился, не уверен или не умеет такой вид.</p>
     <div id="layers"></div>
   </section>
 
   <section class="card">
-    <h2>Облачные модели</h2>
+    <h2 id="s-models">Облачные модели</h2>
     <p class="sub">Вставьте ключ — поставщик и список моделей определятся сами. Ключи хранятся в Связке ключей macOS.</p>
     <form class="row" id="keyForm">
       <input class="grow" id="keySecret" type="password" placeholder="Ключ API" autocomplete="off" required>
       <input class="grow" id="keyBase" placeholder="Адрес посредника — необязательно">
       <button class="primary" id="keyAdd">Добавить ключ</button>
     </form>
+    <p class="sub" id="detecting" style="margin:8px 0 0" hidden></p>
     <div id="keys"></div>
   </section>
 
   <section class="card">
-    <h2>Люди</h2>
-    <p class="sub">Решают всё, включая reCAPTCHA, hCaptcha и Turnstile. Платно, поэтому есть дневной лимит.</p>
-    <form class="row" id="humanForm">
-      <select id="humanProvider"><option value="rucaptcha">RuCaptcha</option><option value="2captcha">2Captcha</option></select>
-      <input class="grow" id="humanKey" type="password" placeholder="Ключ — оставьте пустым, чтобы не менять" autocomplete="off">
-      <label class="row" style="gap:6px">Лимит в день, $ <input id="humanLimit" type="number" min="0" step="0.5" style="width:80px"></label>
-      <button class="primary">Сохранить</button>
+    <h2 id="s-human">Люди</h2>
+    <p class="sub">Решают всё, включая reCAPTCHA, hCaptcha и Turnstile. Платно — лимит в разделе «Лимиты».</p>
+    <div class="row">
+      <label class="field"><span>Сервис</span>
+        <select id="humanProvider"><option value="rucaptcha">RuCaptcha (рубли)</option><option value="2captcha">2Captcha (доллары)</option></select>
+      </label>
+      <div class="grow" id="humanState"></div>
+    </div>
+    <form class="row" id="humanKeyForm" style="margin-top:12px">
+      <input class="grow" id="humanKey" type="password" placeholder="Новый ключ" autocomplete="off" required>
+      <button class="primary">Сохранить ключ</button>
     </form>
-    <p class="sub" id="humanState" style="margin:10px 0 0"></p>
-  </section>
-
-  <section class="card" id="benchCard">
-    <h2>Сравнение моделей</h2>
-    <p class="sub">Модели решают тестовые капчи с известными ответами: текст, примеры, клики, сетки. Лучшая — сверху.</p>
-    <div id="bench"></div>
+    <div class="row" style="margin-top:10px">
+      <button id="checkHuman">Проверить баланс</button>
+      <a class="button" id="topup" target="_blank">Пополнить</a>
+      <span class="grow"></span>
+      <button class="danger" id="removeHuman">Удалить ключ</button>
+    </div>
   </section>
 
   <section class="card">
-    <h2>Последние капчи</h2>
+    <h2 id="s-limits">Лимиты</h2>
+    <p class="sub">0 — без лимита. Когда лимит исчерпан, слой пропускается до конца дня, и приходит уведомление.</p>
+    <form id="limitsForm" class="limits">
+      <label class="field"><span>Модели, $ в день</span><input id="limCloud" type="text" inputmode="decimal"></label>
+      <label class="field"><span>Люди, <span id="limCur1">₽</span> в день</span><input id="limHuman" type="text" inputmode="decimal"></label>
+      <label class="field"><span>Предупредить при балансе ниже, <span id="limCur2">₽</span></span><input id="limLow" type="text" inputmode="decimal"></label>
+      <button class="primary">Сохранить лимиты</button>
+    </form>
+    <p class="sub" id="limitsState" style="margin:10px 0 0"></p>
+  </section>
+
+  <section class="card">
+    <h2 id="s-connect">Подключение программ</h2>
+    <p class="sub">Решатель понимает API 2Captcha и RuCaptcha. В своей программе поменяйте адрес сервиса на этот, а ключ API — на ключ доступа.</p>
+    <div class="row">
+      <div class="grow"><b>Адрес</b><br><span class="mono" id="addr"></span></div>
+      <button id="copyAddr">Скопировать</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="grow"><b>Ключ доступа</b><br><span class="mono" id="clientKey"></span></div>
+      <button id="copyKey">Скопировать</button>
+      <button id="newKey">Новый ключ</button>
+      <label class="row" style="gap:8px" title="Без ключа любая программа на этом Маке сможет тратить ваши деньги">Требовать
+        <span class="switch"><input type="checkbox" id="requireKey"><span></span></span></label>
+    </div>
+    <h3>Новый API (createTask / getTaskResult)</h3>
+    <pre id="exampleV2"></pre>
+    <h3>Старый API (in.php / res.php)</h3>
+    <pre id="exampleV1"></pre>
+    <button id="checkConn">Проверить подключение</button>
+  </section>
+
+  <section class="card">
+    <h2 id="s-bench">Сравнение моделей</h2>
+    <p class="sub">Модели решают тестовые капчи с известными ответами. Лучшая — сверху. Сейчас в наборе капч: <b id="benchCases"></b>.</p>
+    <div id="datasets"></div>
+    <div id="bench" style="margin-top:12px"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="s-journal">Журнал капч</h2>
+    <p class="sub">Нажмите на строку, чтобы увидеть картинку, ответ и путь по слоям. Хранятся последние 300.</p>
+    <div class="row" style="margin-bottom:8px">
+      <select id="journalFilter"><option value="">Все</option><option value="error">Не решённые</option><option value="low">«Не уверен»</option><option value="reported">Отмеченные неверными</option></select>
+    </div>
     <div id="recent"></div>
   </section>
 
+  <section class="card">
+    <h2 id="s-stats">Статистика</h2>
+    <h3>По дням</h3>
+    <div id="days"></div>
+    <h3>Кто как решает (по вашим отметкам «ответ неверный»)</h3>
+    <div id="statRows"></div>
+  </section>
+
   <section class="card row">
-    <div class="grow"><b>Адрес для программ</b><br><span class="mono" id="addr"></span></div>
-    <button id="copyAddr">Скопировать</button>
-    <label class="row" style="gap:8px">Запускать при входе
-      <span class="switch"><input type="checkbox" id="login"><span></span></span></label>
+    <div class="grow"><b>Запускать при входе в систему</b><br><span class="stat">Решатель будет работать сразу после включения Мака.</span></div>
+    <span class="switch"><input type="checkbox" id="login"><span></span></span>
   </section>
 </main>
+
 <div id="toast"></div>
-<div id="modal" hidden><div class="card"><p id="modalText" style="margin:0 0 14px"></p>
-  <div class="row" style="justify-content:flex-end"><button id="modalNo">Отмена</button><button class="primary" id="modalYes">Да</button></div></div></div>
+<div class="overlay" id="confirmBox" hidden><div class="card"><p id="confirmText" style="margin:0 0 14px"></p>
+  <div class="row" style="justify-content:flex-end"><button id="confirmNo">Отмена</button><button class="primary" id="confirmYes">Да</button></div></div></div>
+<div class="overlay" id="entryBox" hidden><div class="card" id="entryCard"></div></div>
+
 <script>
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
-let S = null, busy = false;
+let S = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const money = v => "$" + (v || 0).toFixed(v && v < 0.1 ? 4 : 2);
+const money = (v, cur) => cur === "₽" ? (v || 0).toFixed(2) + " ₽" : "$" + (v || 0).toFixed(v && v < 0.1 ? 4 : 2);
+const ago = t => { const s = Math.round(Date.now() / 1000 - t); return s < 60 ? "только что" : s < 3600 ? Math.round(s / 60) + " мин назад" : new Date(t * 1000).toLocaleString("ru"); };
 
 function toast(text, bad) {
   const t = $("toast"); t.textContent = text; t.className = "show" + (bad ? " bad" : "");
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = "", bad ? 6000 : 3000);
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = "", bad ? 7000 : 3500);
 }
 
 async function api(action, body, button) {
-  if (button) { button.disabled = true; button.dataset.text = button.textContent; button.textContent = "…"; }
+  if (button) { button.disabled = true; button.dataset.text = button.textContent; button.innerHTML = '<span class="spinner"></span>'; }
   try {
     const r = await fetch(action === "state" ? "/api/ui/state" : "/api/ui/" + action, {
       method: action === "state" ? "GET" : "POST",
@@ -168,120 +248,226 @@ async function api(action, body, button) {
   finally { if (button) { button.disabled = false; button.textContent = button.dataset.text; } }
 }
 
+// the built-in confirm dialog silently returns false inside a WKWebView without a UI delegate
+function ask(text, yes) {
+  return new Promise(resolve => {
+    $("confirmText").textContent = text; $("confirmYes").textContent = yes || "Да"; $("confirmBox").hidden = false; $("confirmYes").focus();
+    const close = v => { $("confirmBox").hidden = true; $("confirmYes").onclick = $("confirmNo").onclick = null; ask.close = null; resolve(v); };
+    ask.close = close;
+    $("confirmYes").onclick = () => close(true); $("confirmNo").onclick = () => close(false);
+  });
+}
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { if (ask.close) ask.close(false); $("entryBox").hidden = true; }
+  if (e.key === "Enter" && ask.close && document.activeElement?.tagName !== "INPUT") { e.preventDefault(); ask.close(true); }
+});
+
+function setIfIdle(id, value) { if (document.activeElement !== $(id)) $(id).value = value; }
+
 function render(s) {
   S = s;
+  const h = s.human, cur = h.currency;
   $("status").textContent = s.paused ? "На паузе" : "Работает";
   $("status").className = "pill " + (s.paused ? "warn" : "ok");
   $("pauseBtn").textContent = s.paused ? "Продолжить" : "Пауза";
-  $("today").innerHTML = `Сегодня: решено <b>${s.today.solved}</b> · потрачено <b>${money(s.today.usd)}</b>`;
-  $("addr").textContent = s.address; $("addrHint").textContent = s.address;
-  $("login").checked = s.startAtLogin;
-  $("firstRun").hidden = s.keys.length > 0 || s.human.hasKey;
+  $("today").innerHTML = `Сегодня: решено <b>${s.today.solved}</b> · модели <b>${money(s.cloud.spentToday, "$")}</b>` +
+    (h.hasKey || h.spentToday ? ` · люди <b>${money(h.spentToday, cur)}</b>` : "");
+  $("portNote").hidden = !s.access.portNote; $("portNote").textContent = s.access.portNote;
+  $("firstRun").hidden = s.keys.length > 0 || h.hasKey;
+  $("detecting").hidden = !s.detecting; $("detecting").innerHTML = s.detecting ? `<span class="spinner"></span> ${esc(s.detecting)}…` : "";
 
   let n = 0;
   $("layers").innerHTML = s.layers.map((l, i) => {
     const on = l.enabled; if (on) n++;
     const badge = !on ? '<span class="pill mut">выключен</span>' : l.ready ? '<span class="pill ok">готов</span>' : `<span class="pill warn">${esc(l.why)}</span>`;
     return `<div class="layer"><span class="num ${on ? "" : "off"}">${on ? n : "–"}</span>
-      <span class="grow">${esc(l.title)}</span>${badge}
-      <button class="icon" title="Выше" data-move="${esc(l.id)}" data-step="-1" ${!on || i === 0 ? "disabled" : ""}>↑</button>
-      <button class="icon" title="Ниже" data-move="${esc(l.id)}" data-step="1" ${!on || !s.layers[i + 1]?.enabled ? "disabled" : ""}>↓</button>
+      <div class="grow">${esc(l.title)}<br><span class="stat" style="font-size:12px">${esc(l.can)}</span></div>${badge}
+      <button class="small" title="Выше" data-move="${esc(l.id)}" data-step="-1" ${!on || i === 0 ? "disabled" : ""}>↑</button>
+      <button class="small" title="Ниже" data-move="${esc(l.id)}" data-step="1" ${!on || !s.layers[i + 1]?.enabled ? "disabled" : ""}>↓</button>
       <label class="switch" title="Включить или выключить"><input type="checkbox" data-layer="${esc(l.id)}" ${on ? "checked" : ""}><span></span></label></div>`;
-  }).join("") || '<div class="empty">Слоёв нет</div>';
+  }).join("");
 
-  const keyBox = $("keys");
-  const openFilter = document.activeElement?.dataset?.filter;
-  keyBox.innerHTML = s.keys.map(k => {
-    const enabled = k.models.filter(m => m.enabled).length;
-    const models = k.models.map(m => `<label title="${esc(m.id)}"><input type="checkbox" data-key="${esc(k.name)}" data-model="${esc(m.id)}" ${m.enabled ? "checked" : ""}>${esc(m.id)}</label>`).join("");
+  renderKeys(s);
+
+  setIfIdle("humanProvider", h.provider);
+  const st = h.status || {};
+  $("humanState").innerHTML = !h.hasKey && h.legacyKey ? '<span class="pill warn">введите ключ ещё раз</span> Ключ сохранила прошлая версия, macOS не отдаёт его новой. После повторного ввода он сохранится насовсем.' :
+    !h.hasKey ? '<span class="pill mut">нет ключа</span> Слой людей выключен.' :
+    st.ok ? `<span class="pill ${st.balance < h.lowBalance ? "warn" : "ok"}">ключ работает</span> <span class="mono">${esc(h.hint)}</span> · баланс <b>${money(st.balance, cur)}</b>${st.balance < h.lowBalance ? " — пора пополнить" : ""}` :
+    st.error ? `<span class="pill bad">ошибка</span> <span class="mono">${esc(h.hint)}</span> ${esc(st.error)}` :
+    `<span class="pill mut">ключ сохранён</span> <span class="mono">${esc(h.hint)}</span> — нажмите «Проверить баланс»`;
+  $("topup").href = h.topup || "#";
+  $("removeHuman").disabled = $("checkHuman").disabled = !h.hasKey;
+
+  $("limCur1").textContent = $("limCur2").textContent = cur;
+  setIfIdle("limCloud", s.cloud.limit); setIfIdle("limHuman", h.limit); setIfIdle("limLow", h.lowBalance);
+  const unpriced = s.cloud.unpriced.length ? ` Цена неизвестна у ${s.cloud.unpriced.length} включённых моделей — их траты в лимит не попадают.` : "";
+  const of = (spent, limit, c) => limit ? `${money(spent, c)} из ${money(limit, c)}` : `${money(spent, c)} (без лимита)`;
+  $("limitsState").textContent = `Потрачено сегодня: модели ${of(s.cloud.spentToday, s.cloud.limit, "$")}, люди ${of(h.spentToday, h.limit, cur)}.` + unpriced;
+
+  $("addr").textContent = s.address;
+  $("clientKey").textContent = s.access.required ? s.access.key : "не требуется";
+  $("requireKey").checked = s.access.required;
+  $("copyKey").disabled = $("newKey").disabled = !s.access.required;
+  const key = s.access.required ? s.access.key : "любой";
+  $("exampleV2").textContent = `POST ${s.address}/createTask\n{"clientKey": "${key}", "task": {"type": "ImageToTextTask", "body": "<base64 картинки>"}}\n\nPOST ${s.address}/getTaskResult\n{"clientKey": "${key}", "taskId": <номер из ответа>}`;
+  $("exampleV1").textContent = `POST ${s.address}/in.php   key=${key}&method=base64&body=<base64>&json=1\nGET  ${s.address}/res.php?key=${key}&action=get&id=<номер>&json=1`;
+
+  $("benchCases").textContent = s.benchCases;
+  renderDatasets(s.datasets);
+  renderBench(s.bench);
+  renderJournal(s.recent);
+  renderStats(s.stats);
+  $("login").checked = s.startAtLogin;
+}
+
+function renderKeys(s) {
+  const box = $("keys");
+  const focused = document.activeElement?.dataset?.filter;
+  box.innerHTML = s.keys.map(k => {
+    const enabledIds = k.models.filter(m => m.enabled).map(m => m.id);
+    const enabled = enabledIds.map(id => {
+      const name = `${k.name}/${id}`, t = s.modelTests[name], err = s.modelErrors[name];
+      const test = t ? `<span class="pill ${t.ok === t.n ? "ok" : t.ok ? "warn" : "bad"}">проверка ${t.ok}/${t.n} · ${t.seconds} с</span>` : '<span class="pill mut">не проверена</span>';
+      const error = err ? `<span class="stat" title="${esc(err.error)}">⚠ ${esc(err.error).slice(0, 90)} · ${ago(err.at)}</span>` : "";
+      return `<div class="enabled-model"><b>${esc(id)}</b>${test}${error}<span class="grow"></span>
+        <button class="small" data-test="${esc(k.name)}" data-model="${esc(id)}">Проверить</button>
+        <button class="small" data-off="${esc(k.name)}" data-model="${esc(id)}">Выключить</button></div>`;
+    }).join("");
+    const all = k.models.map(m => `<label title="${esc(m.id)}"><input type="checkbox" data-key="${esc(k.name)}" data-toggle="${esc(m.id)}" ${m.enabled ? "checked" : ""}>${esc(m.id)}</label>`).join("");
     return `<div class="key"><div class="row"><b class="grow">${esc(k.name)} <span class="stat mono">${esc(k.hint)}</span></b>
-        <span class="pill ${enabled ? "ok" : "mut"}">включено ${enabled} из ${k.models.length}</span></div>
-      ${k.models.length > 8 ? `<input data-filter="${esc(k.name)}" placeholder="Найти модель" style="margin-top:8px;width:100%">` : ""}
-      <div class="models" data-models="${esc(k.name)}">${models || '<span class="empty">Список моделей недоступен — впишите название вручную.</span>'}</div>
+        <span class="pill ${enabledIds.length ? "ok" : "mut"}">включено ${enabledIds.length} из ${k.models.length}</span></div>
+      ${enabled ? `<h3>Включённые</h3>${enabled}` : '<p class="sub" style="margin:8px 0 0">Отметьте модели ниже — они встанут в порядок решения.</p>'}
+      <h3>Все модели с картинками</h3>
+      ${k.models.length > 8 ? `<input data-filter="${esc(k.name)}" placeholder="Найти модель" style="width:100%">` : ""}
+      <div class="models" data-models="${esc(k.name)}">${all || '<span class="empty">Список моделей недоступен — впишите название вручную.</span>'}</div>
       <form class="row" data-manual="${esc(k.name)}"><input class="grow" placeholder="Вписать модель вручную"><button>Добавить</button></form>
       <div class="row" style="margin-top:10px">
-        <button data-bench="${esc(k.name)}" ${k.models.length ? "" : "disabled"}>Сравнить модели ключа</button>
+        <button data-bench="${esc(k.name)}" ${k.models.length ? "" : "disabled"}>Сравнить все модели ключа</button>
         <button data-refresh="${esc(k.name)}">Обновить список</button>
         <span class="grow"></span><button class="danger" data-remove="${esc(k.name)}">Удалить ключ</button></div></div>`;
   }).join("");
-  if (openFilter) { const f = keyBox.querySelector(`[data-filter="${CSS.escape(openFilter)}"]`); if (f) f.focus(); }
+  if (focused) { const f = box.querySelector(`[data-filter="${CSS.escape(focused)}"]`); if (f) f.focus(); }
+}
 
-  const h = s.human;
-  if (document.activeElement !== $("humanLimit")) $("humanLimit").value = h.limit;
-  if (document.activeElement !== $("humanProvider")) $("humanProvider").value = h.provider;
-  const st = h.status || {};
-  $("humanState").innerHTML = !h.hasKey && h.legacyKey ? '<span class="pill warn">введите ключ ещё раз</span> Ключ сохранила прошлая версия, macOS не отдаёт его новой. После повторного ввода он сохранится навсегда.' :
-    !h.hasKey ? "Ключа нет — слой людей выключен." :
-    st.ok ? `<span class="pill ok">ключ работает</span> баланс ${money(st.balance)} · потрачено сегодня ${money(h.spentToday)} из ${h.limit ? money(h.limit) : "без лимита"}` :
-    st.error ? `<span class="pill bad">ошибка</span> ${esc(st.error)}` : `Ключ сохранён. <button id="checkHuman">Проверить</button>`;
-
-  renderBench(s.bench);
-
-  $("recent").innerHTML = s.recent.length ? `<table><tr><th>Время</th><th>Вид</th><th>Кто решил</th><th>Уверенность</th><th>Секунд</th><th>Цена</th></tr>` +
-    s.recent.map(r => `<tr><td>${new Date(r.at * 1000).toLocaleTimeString("ru")}</td><td>${esc(r.type)}</td>
-      <td>${r.error ? `<span class="pill bad">не решена</span> <span class="stat">${esc(r.error).slice(0, 140)}</span>` : esc(r.layerTitle || r.layer) + (r.lowConfidence ? ' <span class="pill warn">не уверен</span>' : "")}</td>
-      <td>${r.error ? "" : Math.round(r.confidence * 100) + "%"}</td><td>${r.seconds}</td><td>${r.cost ? money(r.cost) : "—"}</td></tr>`).join("") + "</table>"
-    : '<div class="empty">Пока ни одной. Когда программа пришлёт капчу на адрес ниже, она появится здесь.</div>';
+function renderDatasets(list) {
+  $("datasets").innerHTML = list.map(d => {
+    const j = d.job || {};
+    const right = j.running ? `<span class="stat">${j.done} из ${j.total || "…"} файлов</span>` :
+      d.installed ? `<span class="pill ok">скачан · ${d.installed} капч</span> <button class="small danger" data-dsremove="${esc(d.name)}">Удалить</button>` :
+      `<button class="small primary" data-dsget="${esc(d.name)}">Скачать ~${d.size_mb} МБ</button>`;
+    const bar = j.running ? `<div class="bar"><i style="width:${j.total ? Math.round(j.done / j.total * 100) : 2}%"></i></div>` : "";
+    const err = j.error ? `<div class="stat"><span class="pill bad">ошибка</span> ${esc(j.error)}</div>` : "";
+    return `<div class="key"><div class="row"><div class="grow"><b>Набор настоящих капч: ${esc(d.title)}</b><br>
+      <span class="stat">${esc(d.about)}. ${esc(d.license)}. <a href="${esc(d.url)}" target="_blank">Источник</a></span></div>${right}</div>${bar}${err}</div>`;
+  }).join("");
 }
 
 function renderBench(b) {
   const box = $("bench");
   if (b.running) {
     const pct = b.total ? Math.round(b.done / b.total * 100) : 0;
-    box.innerHTML = `<div class="row"><b class="grow">Идёт сравнение${b.key ? " моделей " + esc(b.key) : ""}</b><span class="stat">${b.done} из ${b.total}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+    box.innerHTML = `<div class="row"><b class="grow">${b.stopping ? "Останавливаю" : "Идёт сравнение"}${b.key ? " моделей " + esc(b.key) : ""}</b>
+      <span class="stat">${b.done} из ${b.total}</span><button class="small danger" id="benchStop" ${b.stopping ? "disabled" : ""}>Остановить</button></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>`;
     return;
   }
-  if (b.error) { box.innerHTML = `<span class="pill bad">не удалось</span> ${esc(b.error)}`; return; }
-  if (!b.rows) {
-    box.innerHTML = S.keys.length || S.layers.some(l => l.id.startsWith("vlm:"))
-      ? `<button id="benchEnabled">Сравнить включённые модели</button> <span class="stat">или кнопка «Сравнить модели ключа» выше</span>`
-      : '<div class="empty">Сначала добавьте ключ облачной модели.</div>';
-    return;
-  }
+  const again = (S.keys.length ? '<button id="benchEnabled">Сравнить включённые модели</button>' : '<div class="empty">Сначала добавьте ключ облачной модели.</div>');
+  if (b.error) { box.innerHTML = `<p><span class="pill bad">не удалось</span> ${esc(b.error)}</p>${again}`; return; }
+  if (!b.rows) { box.innerHTML = again; return; }
   const sets = [...new Set(b.rows.flatMap(r => Object.keys(r.by_set)))].sort();
-  box.innerHTML = `<table><tr><th>Модель</th><th>Точность</th>${sets.map(x => `<th>${esc(x.replace("сгенерированные: ", ""))}</th>`).join("")}<th>Время</th><th>Цена за 1000</th><th></th></tr>` +
-    b.rows.map((r, i) => `<tr><td><b>${esc(r.model)}</b></td><td><b>${Math.round(r.accuracy * 100)}%</b></td>
+  const short = x => x.replace("сгенерированные: ", "").replace("VenusBench: ", "Venus ");
+  box.innerHTML = `<table><tr><th>Модель</th><th>Точность</th>${sets.map(x => `<th>${esc(short(x))}</th>`).join("")}<th>Время</th><th>Цена за 1000</th><th></th></tr>` +
+    b.rows.map((r, i) => `<tr><td><b>${esc(r.model)}</b>${r.errors ? `<br><span class="stat">ошибок API: ${r.errors}</span>` : ""}</td><td><b>${Math.round(r.accuracy * 100)}%</b></td>
       ${sets.map(x => r.by_set[x] ? `<td>${r.by_set[x].ok}/${r.by_set[x].n}</td>` : "<td>—</td>").join("")}
-      <td>${r.seconds.toFixed(1)} с</td><td>${r.usd_per_1000 == null ? "неизвестна" : money(r.usd_per_1000)}</td>
-      <td>${i === 0 && r.accuracy > 0 ? `<button class="primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
-    `</table><p class="sub" style="margin-top:8px"><button id="benchEnabled">Сравнить включённые заново</button></p>`;
+      <td>${r.seconds.toFixed(1)} с</td><td>${r.usd_per_1000 == null ? "неизвестна" : money(r.usd_per_1000, "$")}</td>
+      <td>${i === 0 && r.accuracy > 0 ? `<button class="small primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
+    `</table><p class="sub" style="margin-top:8px">Сравнение от ${ago(b.finished || b.started)}. ${again}</p>`;
 }
 
-// the built-in confirm dialog silently returns false inside a WKWebView without a UI delegate
-function ask(text, yes) {
-  return new Promise(resolve => {
-    $("modalText").textContent = text; $("modalYes").textContent = yes || "Да"; $("modal").hidden = false;
-    const close = v => { $("modal").hidden = true; $("modalYes").onclick = $("modalNo").onclick = null; resolve(v); };
-    $("modalYes").onclick = () => close(true); $("modalNo").onclick = () => close(false);
-  });
+function renderJournal(rows) {
+  const f = $("journalFilter").value;
+  const list = rows.filter(r => !f || (f === "error" && r.error) || (f === "low" && r.lowConfidence) || (f === "reported" && r.reported));
+  $("recent").innerHTML = list.length ? `<table><tr><th>Когда</th><th>Вид</th><th>Кто решил</th><th>Ответ</th><th>Уверенность</th><th>Секунд</th></tr>` +
+    list.map(r => `<tr class="click" data-entry="${r.id}"><td>${new Date(r.at * 1000).toLocaleTimeString("ru")}</td><td>${esc(r.typeTitle)}</td>
+      <td>${r.error ? '<span class="pill bad">не решена</span>' : esc(r.layerTitle || r.layer)}${r.lowConfidence ? ' <span class="pill warn">не уверен</span>' : ""}${r.reported ? ' <span class="pill bad">неверно</span>' : ""}</td>
+      <td class="mono">${r.error ? `<span class="stat">${esc(r.error).slice(0, 80)}</span>` : esc(r.answer)}</td>
+      <td>${r.error ? "" : Math.round(r.confidence * 100) + "%"}</td><td>${r.seconds}</td></tr>`).join("") + "</table>"
+    : `<div class="empty">${rows.length ? "Под фильтр ничего не попало." : "Пока ни одной. Когда программа пришлёт капчу, она появится здесь."}</div>`;
+}
+
+function renderStats(st) {
+  $("days").innerHTML = st.days.length ? `<table><tr><th>День</th><th>Решено</th><th>Модели</th><th>Люди</th></tr>` +
+    st.days.slice().reverse().map(d => `<tr><td>${esc(d.day)}</td><td>${d.solved}</td><td>${money(d.cloud, "$")}</td><td>${money(d.human, S.human.currency)}</td></tr>`).join("") + "</table>"
+    : '<div class="empty">Данных пока нет.</div>';
+  $("statRows").innerHTML = st.rows.length ? `<table><tr><th>Вид капчи</th><th>Слой</th><th>Ответов</th><th>Отмечено неверными</th></tr>` +
+    st.rows.map(r => `<tr><td>${esc(r.type)}${r.comment ? `<br><span class="stat">${esc(r.comment).slice(0, 60)}</span>` : ""}</td><td>${esc(r.layer)}</td><td>${r.answered}</td>
+      <td>${r.bad ? `<span class="pill ${r.bad * 2 >= r.answered ? "bad" : "warn"}">${r.bad}</span>` : "0"}</td></tr>`).join("") + "</table>"
+    : '<div class="empty">Появится, когда решатель начнёт получать капчи.</div>';
+}
+
+async function openEntry(id) {
+  const r = await fetch(`/api/ui/journal/${id}`, {headers: {"X-UI-Token": TOKEN}});
+  const e = await r.json();
+  if (!e.ok) return toast(e.error || "Запись не найдена", true);
+  const s = e.summary;
+  const imgs = Object.entries(e.images).map(([k, v]) => `<div style="margin:8px 0"><span class="stat">${{body: "Капча", target: "Кусочек", background: "Фон", imgInstructions: "Инструкция"}[k] || k}</span><br>
+    <img class="captcha-img" src="data:image/png;base64,${v.replace(/^data:[^,]*,/, "")}"></div>`).join("");
+  const params = Object.entries(e.task).filter(([k]) => k !== "type").map(([k, v]) => `<tr><td class="stat">${esc(k)}</td><td class="mono">${esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`).join("");
+  $("entryCard").innerHTML = `<div class="row"><h2 class="grow" style="margin:0">${esc(s.typeTitle)}</h2><button id="entryClose">Закрыть</button></div>
+    <p class="stat">${new Date(s.at * 1000).toLocaleString("ru")} · ${s.seconds} с${s.cost ? " · " + s.cost.toFixed(4) : ""}</p>
+    ${imgs || '<p class="stat">Картинки нет: капча-токен решается на странице сайта.</p>'}
+    ${params ? `<table>${params}</table>` : ""}
+    <h3>Ответ</h3>${e.solution ? `<div class="answer">${esc(s.answer)}</div><details><summary>Как его получила программа</summary><pre>${esc(JSON.stringify(e.solution, null, 1))}</pre></details>` : `<pre>${esc(s.error)}</pre>`}
+    <h3>Путь по слоям</h3><pre>${esc([...(s.notes || []), s.error ? "" : `${s.layerTitle || s.layer}: ответ принят (${Math.round(s.confidence * 100)}%)`].filter(Boolean).join("\n") || "—")}</pre>
+    ${e.solution && !s.reported ? `<button class="danger" id="reportWrong" data-id="${s.id}">Ответ неверный</button>
+      <span class="stat">Слой больше не будет решать эту картинку; если решали люди — сервису уйдёт жалоба.</span>` : s.reported ? '<span class="pill bad">отмечен неверным</span>' : ""}`;
+  $("entryBox").hidden = false;
 }
 
 async function startBench(key, button) {
   const est = await api("bench-estimate", {key});
   if (!est) return;
-  const price = est.usd == null ? "цена неизвестна — поставщик её не публикует" : "примерно " + money(est.usd);
+  const price = est.usd == null ? "цена неизвестна — поставщик её не публикует" : "примерно " + money(est.usd, "$");
   if (!await ask(`Моделей: ${est.models}, решений: ${est.runs}, ${price}. Запустить сравнение?`, "Запустить")) return;
   await api("bench-start", {key}, button);
 }
 
 document.addEventListener("click", async e => {
+  const row = e.target.closest("tr[data-entry]"); if (row) return openEntry(row.dataset.entry);
+  if (e.target.id === "entryBox") { $("entryBox").hidden = true; return; }
   const t = e.target.closest("button"); if (!t) return;
+  const d = t.dataset;
+  if (t.id === "entryClose") { $("entryBox").hidden = true; return; }
+  if (t.id === "reportWrong") { if (await api("report-wrong", {id: +d.id}, t)) openEntry(d.id); return; }
+  if (t.id === "confirmYes" || t.id === "confirmNo") return;
   if (t.id === "pauseBtn") return api("pause", {paused: !S.paused}, t);
   if (t.id === "copyAddr") return api("copy-address", {}, t);
-  if (t.id === "modalYes" || t.id === "modalNo") return;
+  if (t.id === "copyKey") return api("copy-key", {}, t);
+  if (t.id === "newKey") { if (await ask("Создать новый ключ доступа? Старый перестанет работать — его нужно будет заменить в ваших программах.", "Создать")) api("access", {regenerate: true}, t); return; }
+  if (t.id === "checkConn") return api("check-connection", {}, t);
   if (t.id === "checkHuman") return api("check-human", {}, t);
+  if (t.id === "removeHuman") { if (await ask("Удалить ключ людей? Слой людей выключится.", "Удалить")) api("human-remove-key", {}, t); return; }
   if (t.id === "benchEnabled") return startBench(null, t);
-  if (t.dataset.move) return api("move-layer", {id: t.dataset.move, step: +t.dataset.step});
-  if (t.dataset.refresh) return api("refresh-key", {name: t.dataset.refresh}, t);
-  if (t.dataset.remove) { if (await ask(`Удалить ключ ${t.dataset.remove} и его модели?`, "Удалить")) return api("remove-key", {name: t.dataset.remove}, t); return; }
-  if (t.dataset.bench) return startBench(t.dataset.bench, t);
-  if (t.dataset.best) return api("use-best", {name: t.dataset.best}, t);
+  if (t.id === "benchStop") return api("bench-stop", {}, t);
+  if (d.move) return api("move-layer", {id: d.move, step: +d.step});
+  if (d.refresh) return api("refresh-key", {name: d.refresh}, t);
+  if (d.remove) { if (await ask(`Удалить ключ ${d.remove} и его модели?`, "Удалить")) return api("remove-key", {name: d.remove}, t); return; }
+  if (d.bench) return startBench(d.bench, t);
+  if (d.best) return api("use-best", {name: d.best}, t);
+  if (d.test) return api("test-model", {key: d.test, model: d.model}, t);
+  if (d.off) return api("toggle-model", {key: d.off, model: d.model}, t);
+  if (d.dsget) { if (await ask("Скачать набор настоящих капч с Hugging Face (~36 МБ)? Лицензия не указана — только для личной проверки.", "Скачать")) api("dataset-download", {name: d.dsget}, t); return; }
+  if (d.dsremove) return api("dataset-remove", {name: d.dsremove}, t);
 });
 document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.layer) return api("toggle-layer", {id: t.dataset.layer});
-  if (t.dataset.model) return api("toggle-model", {key: t.dataset.key, model: t.dataset.model});
+  if (t.dataset.toggle) return api("toggle-model", {key: t.dataset.key, model: t.dataset.toggle});
   if (t.id === "login") return api("login", {on: t.checked});
+  if (t.id === "requireKey") return api("access", {required: t.checked});
+  if (t.id === "humanProvider") return api("human-provider", {provider: t.value});
+  if (t.id === "journalFilter") return renderJournal(S.recent);
 });
 document.addEventListener("input", e => {
   const f = e.target.dataset.filter; if (!f) return;
@@ -290,23 +476,26 @@ document.addEventListener("input", e => {
 });
 document.addEventListener("submit", async e => {
   e.preventDefault();
-  const f = e.target;
+  const f = e.target, btn = f.querySelector("button");
   if (f.id === "keyForm") {
     const r = await api("add-key", {secret: $("keySecret").value.trim(), baseUrl: $("keyBase").value.trim()}, $("keyAdd"));
     if (r) { $("keySecret").value = ""; $("keyBase").value = ""; }
-  } else if (f.id === "humanForm") {
-    const key = $("humanKey").value.trim();
-    const r = await api("human", {provider: $("humanProvider").value, key: key || null, limit: $("humanLimit").value}, f.querySelector("button"));
-    if (r) $("humanKey").value = "";
+  } else if (f.id === "humanKeyForm") {
+    if (await api("human-key", {key: $("humanKey").value.trim()}, btn)) $("humanKey").value = "";
+  } else if (f.id === "limitsForm") {
+    if (await api("limits", {cloud: $("limCloud").value, human: $("limHuman").value, low: $("limLow").value}, btn)) btn.blur();
   } else if (f.dataset.manual) {
     const input = f.querySelector("input");
-    if (await api("manual-model", {key: f.dataset.manual, model: input.value.trim()}, f.querySelector("button"))) input.value = "";
+    if (await api("manual-model", {key: f.dataset.manual, model: input.value.trim()}, btn)) input.value = "";
   }
 });
 
 api("state");
-// typing must not be wiped by the periodic refresh
-setInterval(() => { if (!document.hidden && !document.activeElement?.matches?.("input, select")) api("state"); }, 2000);
+// typing must not be wiped by the periodic refresh; adding a key is slow, so its progress is polled meanwhile
+setInterval(() => {
+  if (document.hidden) return;
+  if ($("keyAdd").disabled || !document.activeElement?.matches?.("input, select")) api("state");
+}, 1500);
 </script>
 </body>
 </html>

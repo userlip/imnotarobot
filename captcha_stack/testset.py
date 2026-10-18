@@ -185,6 +185,53 @@ def from_venusbench(root: Path) -> list[dict[str, Any]]:
     return cases
 
 
+VENUS_URL = "https://huggingface.co/datasets/inclusionAI/VenusBench-CAPTCHA"
+DOWNLOADABLE = {
+    "venusbench": {
+        "title": "VenusBench-CAPTCHA", "size_mb": 36, "cases": 129, "url": VENUS_URL,
+        "about": "Настоящие капчи с сайтов и приложений: текст, клики по иконкам и словам, задачи на смысл",
+        "license": "лицензия не указана — только для личной проверки",
+        "files": ["instruction", "images/OCR", "images/icon_click", "images/text_click", "images/visual_reasoning",
+                  "images/oneclick_login"],
+    },
+}
+
+
+def count_cases(folder: Path) -> int:
+    if (folder / "instruction" / "VenusBench-CAPTCHA.json").exists():
+        return len(from_venusbench(folder))
+    return 0
+
+
+def download(name: str, dest: Path, progress=None, transport=None) -> int:
+    """Fetches a test set file by file from Hugging Face; returns the number of usable cases."""
+    import httpx
+
+    info = DOWNLOADABLE[name]
+    repo = info["url"].split("huggingface.co/datasets/")[1]
+    with httpx.Client(timeout=60, follow_redirects=True, transport=transport) as client:
+        files: list[str] = []
+        for folder in info["files"]:
+            r = client.get(f"https://huggingface.co/api/datasets/{repo}/tree/main/{folder}")
+            r.raise_for_status()
+            files += [x["path"] for x in r.json() if x.get("type") == "file"]
+        partial = dest.with_name(dest.name + ".partial")
+        for i, path in enumerate(files, 1):
+            target = partial / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            r = client.get(f"https://huggingface.co/datasets/{repo}/resolve/main/{path}")
+            r.raise_for_status()
+            target.write_bytes(r.content)
+            if progress:
+                progress(i, len(files))
+    if dest.exists():
+        import shutil
+
+        shutil.rmtree(dest)
+    partial.rename(dest)
+    return count_cases(dest)
+
+
 def downloaded() -> list[dict[str, Any]]:
     root = Path(config.APP_DIR) / "testsets"
     cases: list[dict[str, Any]] = []

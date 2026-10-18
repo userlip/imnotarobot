@@ -54,7 +54,7 @@ def test_toggling_layers_keeps_order_and_survives_reload(ctl):
 def test_human_settings(ctl):
     ctl.set_human("2captcha", "hkey", 2.5)
     assert ctl.cfg.human_base_url == "https://api.2captcha.com" and ctl.secrets["human"] == "hkey"
-    assert ctl.service.chain.daily_limits == {"human": 2.5}
+    assert ctl.service.chain.daily_limits == {"human": 2.5, "cloud": 1.0}
     assert ctl.service.chain.layer("human").available()
 
 
@@ -75,14 +75,14 @@ def test_start_at_login_writes_a_launch_agent(ctl):
 def test_today_line_sums_layers(ctl):
     ctl.service.chain.state.answered("k", "local", 0.0)
     ctl.service.chain.state.answered("k", "human", 0.0012)
-    assert ctl.today_line() == "Сегодня: решено 2 · $0.001"
+    assert ctl.today_line() == "Сегодня: решено 2 · модели $0.000, люди 0.00 ₽"
 
 
 def fake_detect(monkeypatch, provider, models, listable=True, base="https://api.example/v1"):
     from captcha_stack.discovery import Detected, ModelInfo
 
     found = Detected(provider, base, [ModelInfo(m, v, 0.3, 2.5) for m, v in models], listable)
-    monkeypatch.setattr(control, "detect_sync", lambda key, base_url="": found)
+    monkeypatch.setattr(control, "detect_sync", lambda key, base_url="", progress=None: found)
 
 
 def test_add_key_lists_vision_models_and_hides_the_secret(ctl, monkeypatch, tmp_path):
@@ -136,3 +136,24 @@ def test_use_best_enables_and_moves_it_first(ctl, monkeypatch):
 def test_reseller_key_is_named_after_its_host(ctl, monkeypatch):
     fake_detect(monkeypatch, "custom", [("claude-opus-5-5", True)], base="https://reseller.example/v1")
     assert ctl.add_key("sk-reseller-abc").name == "reseller.example"
+
+
+def test_model_check_runs_three_small_captchas(ctl, monkeypatch):
+    import json as _json
+
+    import httpx
+
+    fake_detect(monkeypatch, "openai", [("gpt-x", True)])
+    ctl.add_key("sk-xyz")
+    real_run = control.bench.run
+
+    async def run_with_fake_model(specs, cases, votes=1, **kw):
+        def handler(request):
+            return httpx.Response(200, json={"choices": [{"message": {"content": _json.dumps({"text": "nope"})}}]})
+        return await real_run(specs, cases, votes=votes, transport=httpx.MockTransport(handler))
+
+    monkeypatch.setattr(control.bench, "run", run_with_fake_model)
+    result = ctl.test_model("openai", "gpt-x")
+    assert (result["n"], result["ok"]) == (3, 0)
+    assert [d["set"] for d in result["details"]] == ["text", "click", "grid"]
+    assert ctl.model_tests["openai/gpt-x"] is result

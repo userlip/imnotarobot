@@ -143,3 +143,17 @@ def test_upscale_only_small_images():
     small = Image.new("RGB", (100, 40))
     assert imaging.upscale(small)[0].size == (400, 160)
     assert imaging.upscale(Image.new("RGB", (800, 600)))[1] == 1
+
+
+def test_failures_are_remembered_per_model_and_cleared_on_success():
+    from captcha_stack.layers.vlm import LAST_ERRORS
+
+    bad = FakeModel(["no json at all"])
+    layer = bad.layer(votes=1)
+    with pytest.raises(Unsolvable):
+        run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))
+    assert "не в нужном виде" in LAST_ERRORS[layer.name][1]
+    good = FakeModel(['{"text": "abc"}'])
+    layer.transport = httpx.MockTransport(good.handler)
+    run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))
+    assert layer.name not in LAST_ERRORS
