@@ -157,3 +157,48 @@ def test_failures_are_remembered_per_model_and_cleared_on_success():
     layer.transport = httpx.MockTransport(good.handler)
     run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))
     assert layer.name not in LAST_ERRORS
+
+
+@pytest.mark.parametrize("provider,protocol,effort,expected", [
+    ("openai", "", "low", {"reasoning_effort": "low"}),
+    ("gemini", "", "none", {"reasoning_effort": "none"}),
+    ("openrouter", "", "none", {"reasoning": {"enabled": False}}),
+    ("openrouter", "", "high", {"reasoning": {"effort": "high"}}),
+    ("dashscope", "", "medium", {"enable_thinking": True, "thinking_budget": 4096}),
+    ("dashscope", "", "none", {"enable_thinking": False}),
+    ("anthropic", "", "low", {"thinking": {"type": "enabled", "budget_tokens": 1024}, "max_tokens": 3072}),
+    ("anthropic", "", "none", {}),
+    ("openai", "", "default", {}),
+])
+def test_effort_dialects(provider, protocol, effort, expected):
+    from captcha_stack.providers import effort_fields
+
+    assert effort_fields(ModelSpec(name=f"e-{provider}-{effort}", provider=provider, model="m"), effort) == expected
+
+
+def test_effort_is_dropped_when_the_api_refuses_it():
+    from captcha_stack.providers import NO_EFFORT
+
+    sent = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        sent.append(body)
+        if "reasoning_effort" in body:
+            return httpx.Response(400, json={"error": {"message": "Unrecognized request argument: reasoning_effort"}})
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"text": "ok"}'}}]})
+
+    spec = ModelSpec(name="refuses-effort", provider="openai", model="m", api_key="k")
+    text, _ = run(ask(spec, [b"png"], "hi", httpx.MockTransport(handler), effort="low"))
+    assert text == '{"text": "ok"}' and "refuses-effort" in NO_EFFORT
+    run(ask(spec, [b"png"], "hi", httpx.MockTransport(handler), effort="low"))
+    assert ["reasoning_effort" in b for b in sent] == [True, False, False]
+
+
+def test_clicks_and_recognition_use_their_own_effort():
+    m = FakeModel(['{"points": [[10, 10]]}', '{"text": "abc"}'])
+    layer = m.layer(votes=1, effort_recognition="none", effort_clicks="high")
+    run(layer.solve({"type": "CoordinatesTask", "body": blank_image(), "comment": "x"}))
+    run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))
+    assert m.requests[0]["body"]["enable_thinking"] is True and m.requests[0]["body"]["thinking_budget"] == 16000
+    assert m.requests[1]["body"]["enable_thinking"] is False

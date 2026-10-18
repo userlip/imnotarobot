@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from .config import HUMAN_CURRENCY, HUMAN_TOPUP
 from .control import HUMAN_TITLES, LAYER_TITLES, money
 from .layers.vlm import LAST_ERRORS
+from .providers import NO_EFFORT
 
 if TYPE_CHECKING:
     from .control import Controller
@@ -33,6 +34,9 @@ TYPE_TITLES = {
 LAYER_CAN = {"local": "текст на картинке, слайдеры · бесплатно, доли секунды",
              "human": "всё, включая reCAPTCHA, hCaptcha, Turnstile · платно, 10–60 секунд",
              "vlm": "текст, сетки картинок, клики · центы, 5–30 секунд"}
+
+
+EFFORT_TITLES = {"default": "как у поставщика", "none": "нет", "low": "мало", "medium": "средне", "high": "много"}
 
 
 def type_title(task_type: str) -> str:
@@ -82,6 +86,8 @@ def state(c: "Controller") -> dict[str, Any]:
         "layers": layers,
         "keys": [{"name": k.name, "provider": k.provider, "hint": k.hint, "baseUrl": k.base_url, "listable": k.listable,
                   "models": [{"id": mid, "enabled": on} for mid, on in c.key_models(k.name)]} for k in cfg.keys],
+        "efforts": {m.name: {"recognition": m.effort_recognition, "clicks": m.effort_clicks,
+                             "unsupported": m.name in NO_EFFORT} for m in cfg.models},
         "human": {"provider": cfg.human_provider, "currency": HUMAN_CURRENCY.get(cfg.human_provider, "$"),
                   "hasKey": bool(cfg.human_api_key), "hint": cfg.human_key_hint, "legacyKey": c.legacy_human_key,
                   "limit": cfg.human_daily_limit, "lowBalance": cfg.human_low_balance, "status": c.human_status,
@@ -284,6 +290,17 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
             if r["error"] and not r["ok"]:
                 return JSONResponse({"ok": False, "error": f"{b['model']}: {r['error']}", "state": state(c)}, status_code=400)
             return done(f"{b['model']}: решено {r['ok']} из {r['n']}, в среднем {r['seconds']} с на капчу.")
+        if action == "set-effort":
+            c.set_effort(b["key"], b["model"], b["kind"], b["level"])
+            what = "распознавания" if b["kind"] == "recognition" else "кликов"
+            return done(f"{b['model']}: раздумья для {what} — {EFFORT_TITLES[b['level']]}.")
+        if action == "bench-efforts-estimate":
+            specs = c.effort_specs(b["key"], b["model"])
+            runs, usd = c.bench_estimate(specs)
+            return done("", models=len(specs), runs=runs, usd=usd)
+        if action == "bench-efforts":
+            c.start_bench(None, c.effort_specs(b["key"], b["model"]), label=f"{b['model']} на разных уровнях раздумий")
+            return done("Сравнение уровней раздумий запущено.")
         if action == "bench-stop":
             c.stop_bench()
             return done("Останавливаю: дорешаю начатые капчи и покажу то, что успели.")

@@ -43,6 +43,9 @@ class ModelSpec:
     price_out: float = 0.0
     # name of a stored key (Config.keys); its secret is shared by every model enabled from it
     key: str = ""
+    # how long the model thinks (see EFFORTS): recognition = text and tile grids, clicks = point and drag tasks
+    effort_recognition: str = "none"
+    effort_clicks: str = "medium"
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
@@ -68,29 +71,61 @@ def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
 
 
+EFFORTS = ("default", "none", "low", "medium", "high")
+THINKING_BUDGET = {"low": 1024, "medium": 4096, "high": 16000}
+# models whose API refused the effort parameter; later asks go without it
+NO_EFFORT: set[str] = set()
+
+
+def effort_fields(spec: ModelSpec, effort: str) -> dict[str, Any]:
+    """Request fields that set how long the model thinks, in each provider's own dialect."""
+    if effort == "default" or spec.name in NO_EFFORT:
+        return {}
+    if spec.protocol == "anthropic":
+        if effort == "none":
+            return {}
+        budget = THINKING_BUDGET[effort]
+        return {"thinking": {"type": "enabled", "budget_tokens": budget}, "max_tokens": budget + 2048}
+    if spec.provider == "openrouter":
+        return {"reasoning": {"enabled": False}} if effort == "none" else {"reasoning": {"effort": effort}}
+    if spec.provider.startswith("dashscope"):
+        if effort == "none":
+            return {"enable_thinking": False}
+        return {"enable_thinking": True, "thinking_budget": THINKING_BUDGET[effort]}
+    return {"reasoning_effort": effort}
+
+
+def _rejected_parameter(r: httpx.Response) -> bool:
+    text = r.text.lower()
+    return r.status_code in (400, 422) and any(
+        w in text for w in ("reasoning", "thinking", "unrecognized", "unknown parameter", "not supported", "unsupported"))
+
+
 async def ask(spec: ModelSpec, images: list[bytes], prompt: str,
-              transport: httpx.AsyncBaseTransport | None = None) -> tuple[str, dict[str, int]]:
+              transport: httpx.AsyncBaseTransport | None = None, effort: str = "default") -> tuple[str, dict[str, int]]:
     """Sends PNG images plus a prompt; returns the reply text and {"input", "output"} token counts."""
     async with httpx.AsyncClient(timeout=spec.timeout, transport=transport) as client:
         if spec.protocol == "anthropic":
             content = [{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": _b64(i)}}
                        for i in images] + [{"type": "text", "text": prompt}]
-            r = await client.post(
-                f"{spec.base_url}/messages",
-                headers={"x-api-key": spec.api_key, "anthropic-version": "2023-06-01"},
-                json={"model": spec.model, "max_tokens": 2048, "messages": [{"role": "user", "content": content}]},
-            )
-            j = _json_or_raise(r)
+            body = {"model": spec.model, "max_tokens": 2048, "messages": [{"role": "user", "content": content}]}
+            url, headers = f"{spec.base_url}/messages", {"x-api-key": spec.api_key, "anthropic-version": "2023-06-01"}
+        else:
+            content = [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{_b64(i)}"}} for i in images]
+            content.append({"type": "text", "text": prompt})
+            body = {"model": spec.model, "messages": [{"role": "user", "content": content}], **spec.extra}
+            url = f"{spec.base_url}/chat/completions"
+            headers = {"Authorization": f"Bearer {spec.api_key}"} if spec.api_key else {}
+        extra = effort_fields(spec, effort)
+        r = await client.post(url, headers=headers, json={**body, **extra})
+        if extra and _rejected_parameter(r):
+            NO_EFFORT.add(spec.name)
+            r = await client.post(url, headers=headers, json=body)
+        j = _json_or_raise(r)
+        if spec.protocol == "anthropic":
             text = "".join(b.get("text", "") for b in j.get("content", []) if b.get("type") == "text")
             u = j.get("usage", {})
             return text, {"input": u.get("input_tokens", 0), "output": u.get("output_tokens", 0)}
-        content = [{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{_b64(i)}"}} for i in images]
-        content.append({"type": "text", "text": prompt})
-        headers = {"Authorization": f"Bearer {spec.api_key}"} if spec.api_key else {}
-        r = await client.post(f"{spec.base_url}/chat/completions", headers=headers,
-                              json={"model": spec.model, "messages": [{"role": "user", "content": content}],
-                                    **spec.extra})
-        j = _json_or_raise(r)
         text = j["choices"][0]["message"].get("content") or ""
         if isinstance(text, list):
             text = "".join(p.get("text", "") for p in text)

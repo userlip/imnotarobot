@@ -157,3 +157,17 @@ def test_model_check_runs_three_small_captchas(ctl, monkeypatch):
     assert (result["n"], result["ok"]) == (3, 0)
     assert [d["set"] for d in result["details"]] == ["text", "click", "grid"]
     assert ctl.model_tests["openai/gpt-x"] is result
+
+
+def test_effort_settings_and_level_comparison_specs(ctl, monkeypatch):
+    fake_detect(monkeypatch, "openai", [("gpt-x", True)])
+    ctl.add_key("sk-xyz")
+    ctl.toggle_key_model("openai", "gpt-x")
+    ctl.set_effort("openai", "gpt-x", "clicks", "high")
+    assert ctl.cfg.models[0].effort_clicks == "high"
+    assert Config.load().models[0].effort_clicks == "high"
+    assert ctl.bench_specs("openai")[0].effort_clicks == "high"
+    levels = [(s.effort_recognition, s.effort_clicks) for s in ctl.effort_specs("openai", "gpt-x")]
+    assert levels == [("none", "none"), ("low", "low"), ("medium", "medium"), ("high", "high")]
+    with pytest.raises(ValueError):
+        ctl.set_effort("openai", "gpt-x", "clicks", "turbo")

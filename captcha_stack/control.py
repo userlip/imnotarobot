@@ -301,8 +301,11 @@ class Controller:
             return [m for m in self.cfg.models if m.ready()]
         entry = self.key(key_name)
         secret = config_mod.get_secret(f"key:{key_name}")
+        chosen = {m.model: m for m in self.cfg.models if m.key == key_name}
         return [ModelSpec(name=f"{key_name}/{mid}", provider=entry.provider, base_url=entry.base_url, model=mid,
-                          key=key_name, api_key=secret, price_in=p_in, price_out=p_out)
+                          key=key_name, api_key=secret, price_in=p_in, price_out=p_out,
+                          effort_recognition=chosen[mid].effort_recognition if mid in chosen else "none",
+                          effort_clicks=chosen[mid].effort_clicks if mid in chosen else "medium")
                 for mid, vision, p_in, p_out in entry.models if vision]
 
     def bench_estimate(self, specs: list[ModelSpec], votes: int = 1) -> tuple[int, float | None]:
@@ -320,15 +323,38 @@ class Controller:
         out.with_suffix(".json").write_text(json.dumps(results, ensure_ascii=False, default=str))
         return bench.report_html(results, out, votes)
 
-    def start_bench(self, key_name: str | None) -> dict:
+    def effort_specs(self, key_name: str, model_id: str) -> list[ModelSpec]:
+        """The same model at every thinking level, for comparing them against each other."""
+        from dataclasses import replace
+
+        from .providers import EFFORTS
+
+        base = next((s for s in self.bench_specs(key_name) if s.model == model_id), None)
+        if base is None:
+            raise ValueError(f"модели {model_id} у ключа {key_name} нет")
+        return [replace(base, name=f"{base.name} · раздумья {level}", effort_recognition=level, effort_clicks=level)
+                for level in EFFORTS if level != "default"]
+
+    def set_effort(self, key_name: str, model_id: str, kind: str, level: str) -> None:
+        from .providers import EFFORTS
+
+        if level not in EFFORTS or kind not in ("recognition", "clicks"):
+            raise ValueError("неизвестный уровень раздумий")
+        spec = next((m for m in self.cfg.models if m.key == key_name and m.model == model_id), None)
+        if spec is None:
+            raise ValueError("сначала включите модель")
+        setattr(spec, f"effort_{kind}", level)
+        self._apply()
+
+    def start_bench(self, key_name: str | None, specs: list[ModelSpec] | None = None, label: str = "") -> dict:
         """Runs the comparison in a background thread; progress and results land in self.bench."""
         if self.bench.get("running"):
             raise ValueError("сравнение уже идёт")
-        specs = self.bench_specs(key_name)
+        specs = specs or self.bench_specs(key_name)
         if not specs:
             raise ValueError("нет моделей с картинками для сравнения")
         runs, _ = self.bench_estimate(specs)
-        state = {"running": True, "done": 0, "total": runs, "key": key_name, "started": time.time(), "stopping": False}
+        state = {"running": True, "done": 0, "total": runs, "key": label or key_name, "started": time.time(), "stopping": False}
         self.bench = state
 
         def work():

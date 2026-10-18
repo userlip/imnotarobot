@@ -60,6 +60,7 @@ details summary { cursor: pointer; color: var(--mut); font-size: 13px; }
 .key { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
 .models { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 2px 12px; margin: 8px 0; max-height: 200px; overflow: auto; }
 .models label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+select.small-select { padding: 2px 6px; font-size: 12px; margin-left: 4px; }
 .enabled-model { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; color: var(--mut); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
@@ -224,6 +225,7 @@ let S = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const money = (v, cur) => cur === "₽" ? (v || 0).toFixed(2) + " ₽" : "$" + (v || 0).toFixed(v && v < 0.1 ? 4 : 2);
+const EFFORTS = {none: "нет", low: "мало", medium: "средне", high: "много", default: "как у поставщика"};
 const ago = t => { const s = Math.round(Date.now() / 1000 - t); return s < 60 ? "только что" : s < 3600 ? Math.round(s / 60) + " мин назад" : new Date(t * 1000).toLocaleString("ru"); };
 
 function toast(text, bad) {
@@ -330,9 +332,16 @@ function renderKeys(s) {
       const name = `${k.name}/${id}`, t = s.modelTests[name], err = s.modelErrors[name];
       const test = t ? `<span class="pill ${t.ok === t.n ? "ok" : t.ok ? "warn" : "bad"}">проверка ${t.ok}/${t.n} · ${t.seconds} с</span>` : '<span class="pill mut">не проверена</span>';
       const error = err ? `<span class="stat" title="${esc(err.error)}">⚠ ${esc(err.error).slice(0, 90)} · ${ago(err.at)}</span>` : "";
+      const ef = s.efforts[name] || {};
+      const pick = (kind, title) => `<label class="stat" style="font-size:12px">${title}
+        <select class="small-select" data-effort="${kind}" data-key="${esc(k.name)}" data-model="${esc(id)}">
+        ${Object.entries(EFFORTS).map(([v, t]) => `<option value="${v}" ${ef[kind] === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
       return `<div class="enabled-model"><b>${esc(id)}</b>${test}${error}<span class="grow"></span>
         <button class="small" data-test="${esc(k.name)}" data-model="${esc(id)}">Проверить</button>
-        <button class="small" data-off="${esc(k.name)}" data-model="${esc(id)}">Выключить</button></div>`;
+        <button class="small" data-off="${esc(k.name)}" data-model="${esc(id)}">Выключить</button></div>
+        <div class="row" style="gap:14px;padding:0 0 8px">${pick("recognition", "Раздумья: текст и сетки")}${pick("clicks", "клики")}
+        <button class="small" data-efforts="${esc(k.name)}" data-model="${esc(id)}">Сравнить уровни раздумий</button>
+        ${ef.unsupported ? '<span class="stat" style="font-size:12px">поставщик не принимает эту настройку — работает его уровень по умолчанию</span>' : ""}</div>`;
     }).join("");
     const all = k.models.map(m => `<label title="${esc(m.id)}"><input type="checkbox" data-key="${esc(k.name)}" data-toggle="${esc(m.id)}" ${m.enabled ? "checked" : ""}>${esc(m.id)}</label>`).join("");
     return `<div class="key"><div class="row"><b class="grow">${esc(k.name)} <span class="stat mono">${esc(k.hint)}</span></b>
@@ -378,10 +387,10 @@ function renderBench(b) {
   const sets = [...new Set(b.rows.flatMap(r => Object.keys(r.by_set)))].sort();
   const short = x => x.replace("сгенерированные: ", "").replace("VenusBench: ", "Venus ");
   box.innerHTML = `<table><tr><th>Модель</th><th>Точность</th>${sets.map(x => `<th>${esc(short(x))}</th>`).join("")}<th>Время</th><th>Цена за 1000</th><th></th></tr>` +
-    b.rows.map((r, i) => `<tr><td><b>${esc(r.model)}</b>${r.errors ? `<br><span class="stat">ошибок API: ${r.errors}</span>` : ""}</td><td><b>${Math.round(r.accuracy * 100)}%</b></td>
+    b.rows.map((r, i) => `<tr><td><b>${esc(r.name.includes(" · ") ? r.model + " · " + r.name.split(" · ")[1] : r.model)}</b>${r.errors ? `<br><span class="stat">ошибок API: ${r.errors}</span>` : ""}</td><td><b>${Math.round(r.accuracy * 100)}%</b></td>
       ${sets.map(x => r.by_set[x] ? `<td>${r.by_set[x].ok}/${r.by_set[x].n}</td>` : "<td>—</td>").join("")}
       <td>${r.seconds.toFixed(1)} с</td><td>${r.usd_per_1000 == null ? "неизвестна" : money(r.usd_per_1000, "$")}</td>
-      <td>${i === 0 && r.accuracy > 0 ? `<button class="small primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
+      <td>${i === 0 && r.accuracy > 0 && !r.name.includes(" · ") ? `<button class="small primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
     `</table><p class="sub" style="margin-top:8px">Сравнение от ${ago(b.finished || b.started)}. ${again}</p>`;
 }
 
@@ -456,6 +465,13 @@ document.addEventListener("click", async e => {
   if (d.bench) return startBench(d.bench, t);
   if (d.best) return api("use-best", {name: d.best}, t);
   if (d.test) return api("test-model", {key: d.test, model: d.model}, t);
+  if (d.efforts) {
+    const est = await api("bench-efforts-estimate", {key: d.efforts, model: d.model});
+    if (!est) return;
+    const price = est.usd == null ? "цена неизвестна" : "примерно " + money(est.usd, "$");
+    if (await ask(`Прогнать ${d.model} на 4 уровнях раздумий: решений ${est.runs}, ${price}. Запустить?`, "Запустить")) api("bench-efforts", {key: d.efforts, model: d.model}, t);
+    return;
+  }
   if (d.off) return api("toggle-model", {key: d.off, model: d.model}, t);
   if (d.dsget) { if (await ask("Скачать набор настоящих капч с Hugging Face (~36 МБ)? Лицензия не указана — только для личной проверки.", "Скачать")) api("dataset-download", {name: d.dsget}, t); return; }
   if (d.dsremove) return api("dataset-remove", {name: d.dsremove}, t);
@@ -464,6 +480,7 @@ document.addEventListener("change", e => {
   const t = e.target;
   if (t.dataset.layer) return api("toggle-layer", {id: t.dataset.layer});
   if (t.dataset.toggle) return api("toggle-model", {key: t.dataset.key, model: t.dataset.toggle});
+  if (t.dataset.effort) return api("set-effort", {key: t.dataset.key, model: t.dataset.model, kind: t.dataset.effort, level: t.value});
   if (t.id === "login") return api("login", {on: t.checked});
   if (t.id === "requireKey") return api("access", {required: t.checked});
   if (t.id === "humanProvider") return api("human-provider", {provider: t.value});

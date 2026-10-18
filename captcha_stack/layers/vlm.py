@@ -94,6 +94,7 @@ class VlmLayer(Layer):
 
     async def solve(self, task: dict[str, Any]) -> Result:
         images, prompt, parse, same = self._prepare(task)
+        effort = self.spec.effort_clicks if task["type"] == "CoordinatesTask" else self.spec.effort_recognition
         votes = max(1, self.spec.votes)
         answers: list[Any] = []
         errors: list[str] = []
@@ -102,7 +103,7 @@ class VlmLayer(Layer):
         async def one() -> None:
             nonlocal cost
             try:
-                reply, usage = await ask(self.spec, images, prompt, self.transport)
+                reply, usage = await ask(self.spec, images, prompt, self.transport, effort)
                 cost += self.spec.cost(usage)
                 answers.append(parse(last_json(reply)))
             except Exception as e:
