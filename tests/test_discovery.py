@@ -1,0 +1,80 @@
+import asyncio
+
+import httpx
+import pytest
+
+from captcha_stack.discovery import DetectError, detect
+
+
+def fake_world(accepting: str, models: dict, calls: list):
+    """Every provider rejects the key except `accepting`, which lists `models`."""
+    hosts = {"api.openai.com": "openai", "dashscope.aliyuncs.com": "dashscope", "dashscope-intl.aliyuncs.com": "dashscope-intl",
+             "api.mistral.ai": "mistral", "openrouter.ai": "openrouter", "api.x.ai": "xai", "api.groq.com": "groq",
+             "api.anthropic.com": "anthropic", "generativelanguage.googleapis.com": "gemini", "reseller.example": "custom"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        who = hosts[request.url.host]
+        calls.append((who, request.url.path))
+        if who == "openrouter" and request.url.path.endswith("/models"):
+            return httpx.Response(200, json=models)
+        if who != accepting:
+            return httpx.Response(401, json={"error": "bad key"})
+        if who == "custom":
+            return httpx.Response(404 if request.url.path.endswith("/models") else 400, text="nope")
+        if request.url.path.endswith("/key"):
+            return httpx.Response(200, json={"data": {}})
+        return httpx.Response(200, json=models)
+
+    return httpx.MockTransport(handler)
+
+
+def run(key, accepting, models, base_url=""):
+    calls: list = []
+    found = asyncio.run(detect(key, base_url, transport=fake_world(accepting, models, calls)))
+    return found, calls
+
+
+def test_prefix_goes_straight_to_the_provider():
+    found, calls = run("sk-ant-abc", "anthropic", {"data": [{"id": "claude-sonnet-x"}, {"id": "claude-haiku-x"}]})
+    assert found.provider == "anthropic" and calls == [("anthropic", "/v1/models")]
+    assert [m.id for m in found.models if m.vision] == ["claude-haiku-x", "claude-sonnet-x"]
+
+
+def test_unprefixed_key_is_probed_until_someone_accepts():
+    found, calls = run("sk-plain", "dashscope-intl", {"data": [{"id": "qwen3-vl-plus"}, {"id": "qwen-max"}, {"id": "text-embedding-v3"}]})
+    assert found.provider == "dashscope-intl"
+    assert [c[0] for c in calls][:3] == ["openai", "dashscope", "dashscope-intl"]
+    assert [(m.id, m.vision) for m in found.models] == [("qwen3-vl-plus", True), ("qwen-max", False)]
+
+
+def test_openrouter_uses_published_modalities_and_prices():
+    models = {"data": [
+        {"id": "google/gemini-x", "architecture": {"input_modalities": ["text", "image"]},
+         "pricing": {"prompt": "0.0000003", "completion": "0.0000025"}},
+        {"id": "deepseek/text-only", "architecture": {"input_modalities": ["text"]}, "pricing": {"prompt": "0", "completion": "0"}},
+    ]}
+    found, _ = run("sk-or-v1-x", "openrouter", models)
+    gem = found.models[0]
+    assert (gem.id, gem.vision, gem.sure) == ("google/gemini-x", True, True)
+    assert gem.price_in == pytest.approx(0.3) and gem.price_out == pytest.approx(2.5)
+    assert found.models[1].vision is False
+
+
+def test_gemini_ids_lose_their_prefix():
+    found, _ = run("AIzaXYZ", "gemini", {"data": [{"id": "models/gemini-2.5-flash"}, {"id": "models/text-embedding-004"}]})
+    assert [m.id for m in found.models] == ["gemini-2.5-flash"]
+
+
+def test_reseller_without_model_list_is_accepted_for_manual_entry():
+    found, _ = run("sk-reseller", "custom", {}, base_url="https://reseller.example/v1")
+    assert (found.provider, found.listable, found.base_url) == ("custom", False, "https://reseller.example/v1")
+
+
+def test_reseller_rejecting_the_key_is_an_error():
+    with pytest.raises(DetectError, match="не принял"):
+        run("sk-bad", "nobody", {}, base_url="https://reseller.example/v1")
+
+
+def test_nobody_accepts():
+    with pytest.raises(DetectError, match="ни один"):
+        run("sk-nothing", "nobody", {"data": []})

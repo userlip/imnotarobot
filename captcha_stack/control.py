@@ -1,15 +1,19 @@
 """Everything the menu bar does, without the GUI, so it can be tested."""
 
 import asyncio
+import json
 import plistlib
 import sys
 import threading
+import time
 from pathlib import Path
 
 import uvicorn
 
 from . import config as config_mod
-from .config import HUMAN_PRESETS, Config
+from . import bench, testset
+from .config import HUMAN_PRESETS, Config, KeyEntry
+from .discovery import detect_sync
 from .providers import PRESETS, ModelSpec
 from .server import create_app
 from .service import Service
@@ -21,6 +25,7 @@ LAYER_TITLES = {"local": "Локальная модель", "human": "Люди"}
 class Controller:
     def __init__(self, cfg: Config | None = None):
         self.cfg = cfg or Config.load()
+        self._explicit_layers()
         self.service = Service(self.cfg)
         self._server: uvicorn.Server | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -44,11 +49,24 @@ class Controller:
     def address(self) -> str:
         return f"http://127.0.0.1:{self.cfg.port}"
 
+    def _explicit_layers(self) -> None:
+        """The menu switches models one by one, so the catch-all "vlm" layer is spelled out per model."""
+        if "vlm" in self.cfg.layers:
+            i = self.cfg.layers.index("vlm")
+            self.cfg.layers[i:i + 1] = [f"vlm:{m.name}" for m in self.cfg.models]
+
+    def _add_model_layer(self, name: str) -> None:
+        if f"vlm:{name}" in self.cfg.layers:
+            return
+        at = self.cfg.layers.index("human") if "human" in self.cfg.layers else len(self.cfg.layers)
+        self.cfg.layers.insert(at, f"vlm:{name}")
+
     def _apply(self) -> None:
         self.cfg.save()
         fresh = Config.load()
         fresh.state_path = self.cfg.state_path
         self.cfg = fresh
+        self._explicit_layers()
         self.service.reconfigure(fresh)
 
     # --- what the menu shows --------------------------------------------------
@@ -61,9 +79,8 @@ class Controller:
     def layer_items(self) -> list[tuple[str, str, bool]]:
         """(layer id, title, enabled) for every layer that can be switched."""
         items = [("local", LAYER_TITLES["local"], "local" in self.cfg.layers)]
-        vlm_all = "vlm" in self.cfg.layers
         for m in self.cfg.models:
-            items.append((f"vlm:{m.name}", f"Модель {m.name} ({m.provider})", vlm_all or f"vlm:{m.name}" in self.cfg.layers))
+            items.append((f"vlm:{m.name}", f"Модель {m.name}", f"vlm:{m.name}" in self.cfg.layers))
         items.append(("human", f"{LAYER_TITLES['human']} ({self.cfg.human_provider})", "human" in self.cfg.layers))
         return items
 
@@ -91,9 +108,7 @@ class Controller:
         if key.strip():
             config_mod.set_secret(f"model:{name}", key.strip())
         self.cfg.models.append(spec)
-        if "vlm" not in self.cfg.layers:
-            self.cfg.layers = [x for x in self.cfg.layers if x != "human"] + [f"vlm:{name}"] + \
-                (["human"] if "human" in self.cfg.layers else [])
+        self._add_model_layer(name)
         self._apply()
         return spec
 
@@ -134,6 +149,106 @@ class Controller:
         except Exception as e:
             return f"Баланс: ошибка ({str(e)[:40]})"
         return f"Баланс: ${value:.2f}"
+
+    # --- keys --------------------------------------------------------------------
+    def add_key(self, secret: str, base_url: str = "") -> KeyEntry:
+        """Detects the provider, stores the secret in the Keychain and remembers the provider's model list."""
+        secret = secret.strip()
+        if not secret:
+            raise ValueError("пустой ключ")
+        found = detect_sync(secret, base_url.strip())
+        taken = {k.name for k in self.cfg.keys}
+        name = found.provider if found.provider not in taken else next(
+            f"{found.provider}-{i}" for i in range(2, 99) if f"{found.provider}-{i}" not in taken)
+        entry = KeyEntry(name=name, provider=found.provider, base_url=found.base_url,
+                         hint=f"{secret[:5]}…{secret[-4:]}", listable=found.listable,
+                         models=[[m.id, m.vision, m.price_in, m.price_out] for m in found.models])
+        config_mod.set_secret(f"key:{name}", secret)
+        self.cfg.keys.append(entry)
+        self._apply()
+        return entry
+
+    def key(self, name: str) -> KeyEntry:
+        entry = next((k for k in self.cfg.keys if k.name == name), None)
+        if entry is None:
+            raise ValueError(f"ключа {name!r} нет")
+        return entry
+
+    def refresh_key(self, name: str) -> KeyEntry:
+        entry = self.key(name)
+        found = detect_sync(config_mod.get_secret(f"key:{name}"), entry.base_url if entry.provider == "custom" else "")
+        entry.models = [[m.id, m.vision, m.price_in, m.price_out] for m in found.models]
+        self._apply()
+        return entry
+
+    def remove_key(self, name: str) -> None:
+        self.cfg.layers = [x for x in self.cfg.layers
+                           if not any(x == f"vlm:{m.name}" for m in self.cfg.models if m.key == name)]
+        self.cfg.models = [m for m in self.cfg.models if m.key != name]
+        self.cfg.keys = [k for k in self.cfg.keys if k.name != name]
+        config_mod.set_secret(f"key:{name}", "")
+        self._apply()
+
+    def key_models(self, name: str, vision_only: bool = True) -> list[tuple[str, bool]]:
+        """(model id, enabled) for the menu."""
+        enabled = {m.model for m in self.cfg.models if m.key == name}
+        return [(mid, mid in enabled) for mid, vision, *_ in self.key(name).models if vision or not vision_only]
+
+    def toggle_key_model(self, key_name: str, model_id: str) -> None:
+        entry = self.key(key_name)
+        existing = next((m for m in self.cfg.models if m.key == key_name and m.model == model_id), None)
+        if existing:
+            self.cfg.models.remove(existing)
+            self.cfg.layers = [x for x in self.cfg.layers if x != f"vlm:{existing.name}"]
+        else:
+            price = next(((p_in, p_out) for mid, _, p_in, p_out in entry.models if mid == model_id), (0.0, 0.0))
+            spec = ModelSpec(name=f"{key_name}/{model_id}", provider=entry.provider, base_url=entry.base_url,
+                             model=model_id, key=key_name, price_in=price[0], price_out=price[1])
+            self.cfg.models.append(spec)
+            self._add_model_layer(spec.name)
+        self._apply()
+
+    # --- comparing models ----------------------------------------------------------
+    def bench_cases(self, per_kind: int = 5) -> list[dict]:
+        return testset.generated(per_kind) + testset.downloaded()
+
+    def bench_specs(self, key_name: str | None = None) -> list[ModelSpec]:
+        """Every vision model of one key (enabled or not), or every enabled model."""
+        if key_name is None:
+            return [m for m in self.cfg.models if m.ready()]
+        entry = self.key(key_name)
+        secret = config_mod.get_secret(f"key:{key_name}")
+        return [ModelSpec(name=f"{key_name}/{mid}", provider=entry.provider, base_url=entry.base_url, model=mid,
+                          key=key_name, api_key=secret, price_in=p_in, price_out=p_out)
+                for mid, vision, p_in, p_out in entry.models if vision]
+
+    def bench_estimate(self, specs: list[ModelSpec], votes: int = 1) -> tuple[int, float | None]:
+        n = len(self.bench_cases())
+        return n * len(specs), bench.estimate_usd(specs, n, votes)
+
+    def run_bench(self, specs: list[ModelSpec], votes: int = 1, progress=None) -> Path:
+        cases = self.bench_cases()
+        results = asyncio.run(bench.run(specs, cases, votes=votes, progress=progress))
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        out = Path(config_mod.APP_DIR) / "reports" / f"compare-{stamp}.html"
+        (out.with_suffix(".json")).parent.mkdir(parents=True, exist_ok=True)
+        out.with_suffix(".json").write_text(json.dumps(results, ensure_ascii=False, default=str))
+        return bench.report_html(results, out, votes)
+
+    def promote(self, model_names: list[str]) -> None:
+        """Puts the given models first among the vision layers, in this order."""
+        vlm = [f"vlm:{n}" for n in model_names if any(m.name == n for m in self.cfg.models)]
+        others = [x for x in self.cfg.layers if x not in vlm]
+        insert_at = next((i for i, x in enumerate(others) if x.startswith("vlm") or x == "human"), len(others))
+        self.cfg.layers = others[:insert_at] + vlm + others[insert_at:]
+        self._apply()
+
+    def use_best(self, model_name: str) -> None:
+        """Enables a compared model if needed and puts it first among the vision layers."""
+        if not any(m.name == model_name for m in self.cfg.models):
+            key_name, model_id = model_name.split("/", 1)
+            self.toggle_key_model(key_name, model_id)
+        self.promote([model_name])
 
     # --- start at login ---------------------------------------------------------
     @staticmethod

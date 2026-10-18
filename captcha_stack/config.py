@@ -34,20 +34,23 @@ def set_secret(account: str, value: str) -> None:
             pass
 
 
-def _dashscope_key() -> str:
-    path = Path.home() / ".config" / "dashscope.env"
-    if not path.exists():
-        return ""
-    for line in path.read_text().splitlines():
-        if line.startswith("DASHSCOPE_API_KEYS="):
-            return line.split("=", 1)[1].split(",")[0].strip()
-    return ""
-
-
 def model_key(spec: ModelSpec) -> str:
-    return (get_secret(f"model:{spec.name}")
-            or os.environ.get(f"{spec.name.upper().replace('-', '_')}_API_KEY", "")
-            or (_dashscope_key() if spec.provider == "dashscope" else ""))
+    if spec.key:
+        return get_secret(f"key:{spec.key}")
+    return get_secret(f"model:{spec.name}") or os.environ.get(f"{spec.name.upper().replace('-', '_')}_API_KEY", "")
+
+
+@dataclass
+class KeyEntry:
+    """An API key the user added; the secret itself is in the Keychain under key:<name>."""
+
+    name: str
+    provider: str
+    base_url: str = ""
+    hint: str = ""
+    # model ids that accept images, as last listed by the provider: [id, vision, price_in, price_out]
+    models: list[list] = field(default_factory=list)
+    listable: bool = True
 
 
 @dataclass
@@ -56,6 +59,7 @@ class Config:
     port: int = 8765
     layers: list[str] = field(default_factory=lambda: ["local", "vlm", "human"])
     ocr_min_confidence: float = 0.9
+    keys: list[KeyEntry] = field(default_factory=list)
     models: list[ModelSpec] = field(default_factory=list)
     human_provider: str = "rucaptcha"
     human_base_url: str = ""
@@ -77,12 +81,10 @@ class Config:
     def load(cls, path: Path | None = None, with_secrets: bool = True) -> "Config":
         path = path or APP_DIR / "config.json"
         raw: dict[str, Any] = json.loads(path.read_text()) if path.exists() else {}
-        names = {f.name for f in fields(cls)} - {"models", "human_api_key"}
+        names = {f.name for f in fields(cls)} - {"models", "keys", "human_api_key"}
         cfg = cls(**{k: v for k, v in raw.items() if k in names})
-        if "models" in raw:
-            cfg.models = [ModelSpec(**m) for m in raw["models"]]
-        elif _dashscope_key():
-            cfg.models = [ModelSpec(name="qwen", provider="dashscope")]
+        cfg.keys = [KeyEntry(**k) for k in raw.get("keys", [])]
+        cfg.models = [ModelSpec(**m) for m in raw.get("models", [])]
         if with_secrets:
             for m in cfg.models:
                 m.api_key = m.api_key or model_key(m)

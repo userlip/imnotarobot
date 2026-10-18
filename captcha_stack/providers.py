@@ -8,7 +8,12 @@ import httpx
 PRESETS: dict[str, dict[str, Any]] = {
     "dashscope": {"protocol": "openai", "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
                   "model": "qwen3-vl-plus", "price_in": 0.20, "price_out": 1.60},
+    "dashscope-intl": {"protocol": "openai", "base_url": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+                       "model": "qwen3-vl-plus", "price_in": 0.20, "price_out": 1.60},
     "openai": {"protocol": "openai", "base_url": "https://api.openai.com/v1", "model": ""},
+    "mistral": {"protocol": "openai", "base_url": "https://api.mistral.ai/v1", "model": ""},
+    "xai": {"protocol": "openai", "base_url": "https://api.x.ai/v1", "model": ""},
+    "groq": {"protocol": "openai", "base_url": "https://api.groq.com/openai/v1", "model": ""},
     "gemini": {"protocol": "openai", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
                "model": "gemini-2.5-flash"},
     "anthropic": {"protocol": "anthropic", "base_url": "https://api.anthropic.com/v1", "model": ""},
@@ -36,6 +41,8 @@ class ModelSpec:
     # USD per 1M tokens; 0 means the cost is not tracked
     price_in: float = 0.0
     price_out: float = 0.0
+    # name of a stored key (Config.keys); its secret is shared by every model enabled from it
+    key: str = ""
     extra: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self):
