@@ -7,7 +7,7 @@ name = "captcha-stack"
 version = "0.1.0"
 description = "Layered captcha solver with a 2Captcha-style API: local models, then a vision LLM, then human workers"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "keyring", "rumps"]
+dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "keyring", "rumps", "pyobjc-framework-WebKit"]
 
 [project.scripts]
 captcha-stack = "captcha_stack.__main__:main"
@@ -23,4 +23,4 @@ pythonpath = [".", "tests"]
 include = ["captcha_stack*"]
 
 [tool.setuptools.package-data]
-captcha_stack = ["assets/*.png"]
+captcha_stack = ["assets/*.png", "assets/*.html"]

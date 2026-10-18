@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Captcha Stack</title>
+<style>
+:root {
+  --bg: #f5f5f3; --card: #ffffff; --fg: #1c1c1e; --mut: #6e6e73; --line: #e3e3e0;
+  --acc: #2f62d6; --acc-soft: #e8eefc; --ok: #1f8a4c; --ok-soft: #e4f4ea; --warn: #b25b00; --warn-soft: #fbefe1;
+  --bad: #c0362c; --bad-soft: #fbe6e4; --shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1c1e; --card: #2a2a2d; --fg: #f2f2f2; --mut: #9a9aa0; --line: #3a3a3d;
+    --acc: #6e9bff; --acc-soft: #26314d; --ok: #4cc27f; --ok-soft: #1e3427; --warn: #f0a35c; --warn-soft: #3a2c1c;
+    --bad: #ff7a70; --bad-soft: #3d2220; --shadow: none;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif; }
+main { max-width: 860px; margin: 0 auto; padding: 20px 20px 60px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 4px; }
+.sub { color: var(--mut); font-size: 13px; margin: 0 0 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+.row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); } .pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); } .pill.mut { background: var(--bg); color: var(--mut); }
+.stat { color: var(--mut); } .stat b { color: var(--fg); }
+button { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+button:hover { border-color: var(--acc); }
+button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+button.danger { color: var(--bad); }
+button.icon { padding: 4px 8px; }
+button:disabled { opacity: .5; cursor: default; }
+input, select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; min-width: 0; }
+input:focus, select:focus { outline: 2px solid var(--acc-soft); border-color: var(--acc); }
+.layer { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.layer:first-of-type { border-top: 0; }
+.num { width: 22px; height: 22px; border-radius: 50%; background: var(--acc-soft); color: var(--acc); display: grid; place-items: center; font-size: 12px; font-weight: 700; flex: none; }
+.num.off { background: var(--bg); color: var(--mut); }
+.switch { position: relative; width: 36px; height: 21px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: .15s; cursor: pointer; }
+.switch span::after { content: ""; position: absolute; width: 17px; height: 17px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: .15s; }
+.switch input:checked + span { background: var(--ok); }
+.switch input:checked + span::after { transform: translateX(15px); }
+.key { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
+.models { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 4px 12px; margin: 10px 0; max-height: 220px; overflow: auto; }
+.models label { display: flex; align-items: center; gap: 6px; padding: 3px 0; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--mut); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.bar { height: 8px; background: var(--bg); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.bar i { display: block; height: 100%; background: var(--acc); transition: width .3s; }
+.empty { color: var(--mut); padding: 8px 0; }
+.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+#toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%) translateY(20px); opacity: 0; transition: .2s;
+  background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; max-width: 90vw; pointer-events: none; z-index: 9; }
+#toast.show { opacity: 1; transform: translateX(-50%); }
+#toast.bad { background: var(--bad); color: #fff; }
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,.35); display: grid; place-items: center; z-index: 8; }
+#modal[hidden] { display: none; }
+#modal .card { max-width: 420px; margin: 16px; }
+.hint { background: var(--acc-soft); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+.hint ol { margin: 6px 0 0; padding-left: 20px; }
+@media (max-width: 560px) { .models { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Captcha Stack</h1>
+    <span id="status" class="pill mut">…</span>
+    <span class="stat grow" id="today"></span>
+    <button id="pauseBtn"></button>
+  </header>
+
+  <div class="hint" id="firstRun" hidden>
+    <b>С чего начать</b>
+    <ol>
+      <li>Добавьте ключ облачной модели ниже — поставщик определится сам — и отметьте модели.</li>
+      <li>По желанию добавьте ключ RuCaptcha: люди решат то, что не смогли модели.</li>
+      <li>Направьте свою программу на адрес <span class="mono" id="addrHint"></span> вместо адреса 2Captcha.</li>
+    </ol>
+  </div>
+
+  <section class="card">
+    <h2>Порядок решения</h2>
+    <p class="sub">Капча идёт сверху вниз: следующий слой включается, если предыдущий не справился или не уверен.</p>
+    <div id="layers"></div>
+  </section>
+
+  <section class="card">
+    <h2>Облачные модели</h2>
+    <p class="sub">Вставьте ключ — поставщик и список моделей определятся сами. Ключи хранятся в Связке ключей macOS.</p>
+    <form class="row" id="keyForm">
+      <input class="grow" id="keySecret" type="password" placeholder="Ключ API" autocomplete="off" required>
+      <input class="grow" id="keyBase" placeholder="Адрес посредника — необязательно">
+      <button class="primary" id="keyAdd">Добавить ключ</button>
+    </form>
+    <div id="keys"></div>
+  </section>
+
+  <section class="card">
+    <h2>Люди</h2>
+    <p class="sub">Решают всё, включая reCAPTCHA, hCaptcha и Turnstile. Платно, поэтому есть дневной лимит.</p>
+    <form class="row" id="humanForm">
+      <select id="humanProvider"><option value="rucaptcha">RuCaptcha</option><option value="2captcha">2Captcha</option></select>
+      <input class="grow" id="humanKey" type="password" placeholder="Ключ — оставьте пустым, чтобы не менять" autocomplete="off">
+      <label class="row" style="gap:6px">Лимит в день, $ <input id="humanLimit" type="number" min="0" step="0.5" style="width:80px"></label>
+      <button class="primary">Сохранить</button>
+    </form>
+    <p class="sub" id="humanState" style="margin:10px 0 0"></p>
+  </section>
+
+  <section class="card" id="benchCard">
+    <h2>Сравнение моделей</h2>
+    <p class="sub">Модели решают тестовые капчи с известными ответами: текст, примеры, клики, сетки. Лучшая — сверху.</p>
+    <div id="bench"></div>
+  </section>
+
+  <section class="card">
+    <h2>Последние капчи</h2>
+    <div id="recent"></div>
+  </section>
+
+  <section class="card row">
+    <div class="grow"><b>Адрес для программ</b><br><span class="mono" id="addr"></span></div>
+    <button id="copyAddr">Скопировать</button>
+    <label class="row" style="gap:8px">Запускать при входе
+      <span class="switch"><input type="checkbox" id="login"><span></span></span></label>
+  </section>
+</main>
+<div id="toast"></div>
+<div id="modal" hidden><div class="card"><p id="modalText" style="margin:0 0 14px"></p>
+  <div class="row" style="justify-content:flex-end"><button id="modalNo">Отмена</button><button class="primary" id="modalYes">Да</button></div></div></div>
+<script>
+const TOKEN = new URLSearchParams(location.search).get("t") || "";
+let S = null, busy = false;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const money = v => "$" + (v || 0).toFixed(v && v < 0.1 ? 4 : 2);
+
+function toast(text, bad) {
+  const t = $("toast"); t.textContent = text; t.className = "show" + (bad ? " bad" : "");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = "", bad ? 6000 : 3000);
+}
+
+async function api(action, body, button) {
+  if (button) { button.disabled = true; button.dataset.text = button.textContent; button.textContent = "…"; }
+  try {
+    const r = await fetch(action === "state" ? "/api/ui/state" : "/api/ui/" + action, {
+      method: action === "state" ? "GET" : "POST",
+      headers: {"Content-Type": "application/json", "X-UI-Token": TOKEN},
+      body: action === "state" ? undefined : JSON.stringify(body || {}),
+    });
+    const j = await r.json();
+    if (j.state) render(j.state); else if (action === "state" && r.ok) render(j);
+    if (!r.ok || j.ok === false) { if (action !== "state") toast(j.error || "Не получилось", true); return null; }
+    if (j.message) toast(j.message);
+    return j;
+  } catch (e) { toast("Нет связи с приложением", true); return null; }
+  finally { if (button) { button.disabled = false; button.textContent = button.dataset.text; } }
+}
+
+function render(s) {
+  S = s;
+  $("status").textContent = s.paused ? "На паузе" : "Работает";
+  $("status").className = "pill " + (s.paused ? "warn" : "ok");
+  $("pauseBtn").textContent = s.paused ? "Продолжить" : "Пауза";
+  $("today").innerHTML = `Сегодня: решено <b>${s.today.solved}</b> · потрачено <b>${money(s.today.usd)}</b>`;
+  $("addr").textContent = s.address; $("addrHint").textContent = s.address;
+  $("login").checked = s.startAtLogin;
+  $("firstRun").hidden = s.keys.length > 0 || s.human.hasKey;
+
+  let n = 0;
+  $("layers").innerHTML = s.layers.map((l, i) => {
+    const on = l.enabled; if (on) n++;
+    const badge = !on ? '<span class="pill mut">выключен</span>' : l.ready ? '<span class="pill ok">готов</span>' : `<span class="pill warn">${esc(l.why)}</span>`;
+    return `<div class="layer"><span class="num ${on ? "" : "off"}">${on ? n : "–"}</span>
+      <span class="grow">${esc(l.title)}</span>${badge}
+      <button class="icon" title="Выше" data-move="${esc(l.id)}" data-step="-1" ${!on || i === 0 ? "disabled" : ""}>↑</button>
+      <button class="icon" title="Ниже" data-move="${esc(l.id)}" data-step="1" ${!on || !s.layers[i + 1]?.enabled ? "disabled" : ""}>↓</button>
+      <label class="switch" title="Включить или выключить"><input type="checkbox" data-layer="${esc(l.id)}" ${on ? "checked" : ""}><span></span></label></div>`;
+  }).join("") || '<div class="empty">Слоёв нет</div>';
+
+  const keyBox = $("keys");
+  const openFilter = document.activeElement?.dataset?.filter;
+  keyBox.innerHTML = s.keys.map(k => {
+    const enabled = k.models.filter(m => m.enabled).length;
+    const models = k.models.map(m => `<label title="${esc(m.id)}"><input type="checkbox" data-key="${esc(k.name)}" data-model="${esc(m.id)}" ${m.enabled ? "checked" : ""}>${esc(m.id)}</label>`).join("");
+    return `<div class="key"><div class="row"><b class="grow">${esc(k.name)} <span class="stat mono">${esc(k.hint)}</span></b>
+        <span class="pill ${enabled ? "ok" : "mut"}">включено ${enabled} из ${k.models.length}</span></div>
+      ${k.models.length > 8 ? `<input data-filter="${esc(k.name)}" placeholder="Найти модель" style="margin-top:8px;width:100%">` : ""}
+      <div class="models" data-models="${esc(k.name)}">${models || '<span class="empty">Список моделей недоступен — впишите название вручную.</span>'}</div>
+      <form class="row" data-manual="${esc(k.name)}"><input class="grow" placeholder="Вписать модель вручную"><button>Добавить</button></form>
+      <div class="row" style="margin-top:10px">
+        <button data-bench="${esc(k.name)}" ${k.models.length ? "" : "disabled"}>Сравнить модели ключа</button>
+        <button data-refresh="${esc(k.name)}">Обновить список</button>
+        <span class="grow"></span><button class="danger" data-remove="${esc(k.name)}">Удалить ключ</button></div></div>`;
+  }).join("");
+  if (openFilter) { const f = keyBox.querySelector(`[data-filter="${CSS.escape(openFilter)}"]`); if (f) f.focus(); }
+
+  const h = s.human;
+  if (document.activeElement !== $("humanLimit")) $("humanLimit").value = h.limit;
+  if (document.activeElement !== $("humanProvider")) $("humanProvider").value = h.provider;
+  const st = h.status || {};
+  $("humanState").innerHTML = !h.hasKey ? "Ключа нет — слой людей выключен." :
+    st.ok ? `<span class="pill ok">ключ работает</span> баланс ${money(st.balance)} · потрачено сегодня ${money(h.spentToday)} из ${h.limit ? money(h.limit) : "без лимита"}` :
+    st.error ? `<span class="pill bad">ошибка</span> ${esc(st.error)}` : `Ключ сохранён. <button id="checkHuman">Проверить</button>`;
+
+  renderBench(s.bench);
+
+  $("recent").innerHTML = s.recent.length ? `<table><tr><th>Время</th><th>Вид</th><th>Кто решил</th><th>Уверенность</th><th>Секунд</th><th>Цена</th></tr>` +
+    s.recent.map(r => `<tr><td>${new Date(r.at * 1000).toLocaleTimeString("ru")}</td><td>${esc(r.type)}</td>
+      <td>${r.error ? `<span class="pill bad">не решена</span> <span class="stat">${esc(r.error).slice(0, 140)}</span>` : esc(r.layerTitle || r.layer) + (r.lowConfidence ? ' <span class="pill warn">не уверен</span>' : "")}</td>
+      <td>${r.error ? "" : Math.round(r.confidence * 100) + "%"}</td><td>${r.seconds}</td><td>${r.cost ? money(r.cost) : "—"}</td></tr>`).join("") + "</table>"
+    : '<div class="empty">Пока ни одной. Когда программа пришлёт капчу на адрес ниже, она появится здесь.</div>';
+}
+
+function renderBench(b) {
+  const box = $("bench");
+  if (b.running) {
+    const pct = b.total ? Math.round(b.done / b.total * 100) : 0;
+    box.innerHTML = `<div class="row"><b class="grow">Идёт сравнение${b.key ? " моделей " + esc(b.key) : ""}</b><span class="stat">${b.done} из ${b.total}</span></div><div class="bar"><i style="width:${pct}%"></i></div>`;
+    return;
+  }
+  if (b.error) { box.innerHTML = `<span class="pill bad">не удалось</span> ${esc(b.error)}`; return; }
+  if (!b.rows) {
+    box.innerHTML = S.keys.length || S.layers.some(l => l.id.startsWith("vlm:"))
+      ? `<button id="benchEnabled">Сравнить включённые модели</button> <span class="stat">или кнопка «Сравнить модели ключа» выше</span>`
+      : '<div class="empty">Сначала добавьте ключ облачной модели.</div>';
+    return;
+  }
+  const sets = [...new Set(b.rows.flatMap(r => Object.keys(r.by_set)))].sort();
+  box.innerHTML = `<table><tr><th>Модель</th><th>Точность</th>${sets.map(x => `<th>${esc(x.replace("сгенерированные: ", ""))}</th>`).join("")}<th>Время</th><th>Цена за 1000</th><th></th></tr>` +
+    b.rows.map((r, i) => `<tr><td><b>${esc(r.model)}</b></td><td><b>${Math.round(r.accuracy * 100)}%</b></td>
+      ${sets.map(x => r.by_set[x] ? `<td>${r.by_set[x].ok}/${r.by_set[x].n}</td>` : "<td>—</td>").join("")}
+      <td>${r.seconds.toFixed(1)} с</td><td>${r.usd_per_1000 == null ? "неизвестна" : money(r.usd_per_1000)}</td>
+      <td>${i === 0 && r.accuracy > 0 ? `<button class="primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
+    `</table><p class="sub" style="margin-top:8px"><button id="benchEnabled">Сравнить включённые заново</button></p>`;
+}
+
+// the built-in confirm dialog silently returns false inside a WKWebView without a UI delegate
+function ask(text, yes) {
+  return new Promise(resolve => {
+    $("modalText").textContent = text; $("modalYes").textContent = yes || "Да"; $("modal").hidden = false;
+    const close = v => { $("modal").hidden = true; $("modalYes").onclick = $("modalNo").onclick = null; resolve(v); };
+    $("modalYes").onclick = () => close(true); $("modalNo").onclick = () => close(false);
+  });
+}
+
+async function startBench(key, button) {
+  const est = await api("bench-estimate", {key});
+  if (!est) return;
+  const price = est.usd == null ? "цена неизвестна — поставщик её не публикует" : "примерно " + money(est.usd);
+  if (!await ask(`Моделей: ${est.models}, решений: ${est.runs}, ${price}. Запустить сравнение?`, "Запустить")) return;
+  await api("bench-start", {key}, button);
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.id === "pauseBtn") return api("pause", {paused: !S.paused}, t);
+  if (t.id === "copyAddr") return api("copy-address", {}, t);
+  if (t.id === "modalYes" || t.id === "modalNo") return;
+  if (t.id === "checkHuman") return api("check-human", {}, t);
+  if (t.id === "benchEnabled") return startBench(null, t);
+  if (t.dataset.move) return api("move-layer", {id: t.dataset.move, step: +t.dataset.step});
+  if (t.dataset.refresh) return api("refresh-key", {name: t.dataset.refresh}, t);
+  if (t.dataset.remove) { if (await ask(`Удалить ключ ${t.dataset.remove} и его модели?`, "Удалить")) return api("remove-key", {name: t.dataset.remove}, t); return; }
+  if (t.dataset.bench) return startBench(t.dataset.bench, t);
+  if (t.dataset.best) return api("use-best", {name: t.dataset.best}, t);
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.layer) return api("toggle-layer", {id: t.dataset.layer});
+  if (t.dataset.model) return api("toggle-model", {key: t.dataset.key, model: t.dataset.model});
+  if (t.id === "login") return api("login", {on: t.checked});
+});
+document.addEventListener("input", e => {
+  const f = e.target.dataset.filter; if (!f) return;
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll(`[data-models="${CSS.escape(f)}"] label`).forEach(l => l.hidden = !l.title.toLowerCase().includes(q));
+});
+document.addEventListener("submit", async e => {
+  e.preventDefault();
+  const f = e.target;
+  if (f.id === "keyForm") {
+    const r = await api("add-key", {secret: $("keySecret").value.trim(), baseUrl: $("keyBase").value.trim()}, $("keyAdd"));
+    if (r) { $("keySecret").value = ""; $("keyBase").value = ""; }
+  } else if (f.id === "humanForm") {
+    const key = $("humanKey").value.trim();
+    const r = await api("human", {provider: $("humanProvider").value, key: key || null, limit: $("humanLimit").value}, f.querySelector("button"));
+    if (r) $("humanKey").value = "";
+  } else if (f.dataset.manual) {
+    const input = f.querySelector("input");
+    if (await api("manual-model", {key: f.dataset.manual, model: input.value.trim()}, f.querySelector("button"))) input.value = "";
+  }
+});
+
+api("state");
+// typing must not be wiped by the periodic refresh
+setInterval(() => { if (!document.hidden && !document.activeElement?.matches?.("input, select")) api("state"); }, 2000);
+</script>
+</body>
+</html>

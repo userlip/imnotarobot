@@ -20,9 +20,12 @@ def selftest() -> int:
         cfg = Config(layers=["local"], state_path=f"{tmp}/state.json")
         case = testset.generated(1, seed=3)[0]
         r = asyncio.run(Service(cfg).chain.solve(case["task"]))
-    from captcha_stack.menubar import ICON
+    import WebKit  # noqa: F401
 
-    print(json.dumps({"icon": ICON.exists(), "keyring": type(keyring.get_keyring()).__module__, "expected": case["expected"],
+    from captcha_stack.menubar import ICON
+    from captcha_stack.ui import PAGE
+
+    print(json.dumps({"icon": ICON.exists(), "page": PAGE.exists(), "keyring": type(keyring.get_keyring()).__module__, "expected": case["expected"],
                       "solution": r.solution, "layer": r.layer, "confidence": round(r.confidence, 3)}))
     return 0
 

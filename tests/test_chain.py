@@ -24,7 +24,7 @@ def test_unsure_layer_escalates_to_next():
     local, vlm = FakeLayer("local", [("abc", 0.4)]), FakeLayer("vlm", [("abd", 0.9)])
     r = solve(Chain([local, vlm]))
     assert r.layer == "vlm"
-    assert "local: unsure (0.40)" in r.meta["tried"]
+    assert "local: не уверен (0.40)" in r.meta["tried"]
 
 
 def test_two_unsure_layers_that_agree_are_accepted():
@@ -40,7 +40,7 @@ def test_failures_and_missing_config_fall_through_to_the_last_layer():
     human = FakeLayer("human", [("final", 1.0)], min_confidence=1.0)
     r = solve(Chain([local, vlm, human]))
     assert r.layer == "human"
-    assert r.meta["tried"] == ["local: bad constraints", "vlm: not configured"]
+    assert r.meta["tried"] == ["local: bad constraints", "vlm: нет ключа"]
 
 
 def test_best_unsure_answer_is_returned_flagged_when_nothing_else_is_left():
@@ -97,7 +97,7 @@ def test_daily_limit_stops_a_paid_layer():
     chain = Chain([human], daily_limits={"human": 1.0})
     solve(chain, {**TASK, "body": "a"})
     solve(chain, {**TASK, "body": "b"})
-    with pytest.raises(Unsolvable, match="daily limit"):
+    with pytest.raises(Unsolvable, match="дневной лимит"):
         solve(chain, {**TASK, "body": "c"})
     assert human.calls == 2
 

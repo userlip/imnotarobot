@@ -89,7 +89,7 @@ def test_coordinates_get_a_ruler_copy_and_close_points_are_merged():
 
 def test_points_outside_the_image_are_dropped():
     m = FakeModel(['{"points": [[900, 900]]}'])
-    with pytest.raises(Unsolvable, match="no answer|no points"):
+    with pytest.raises(Unsolvable, match="нет ответа|не указала точек"):
         run(m.layer(votes=1).solve({"type": "CoordinatesTask", "body": blank_image((200, 100))}))
 
 

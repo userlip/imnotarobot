@@ -3,6 +3,7 @@
 import asyncio
 import json
 import plistlib
+import secrets
 import sys
 import threading
 import time
@@ -21,6 +22,7 @@ from .service import Service
 
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / "app.captcha-stack.plist"
 LAYER_TITLES = {"local": "Локальная модель", "human": "Люди"}
+HUMAN_TITLES = {"rucaptcha": "RuCaptcha", "2captcha": "2Captcha"}
 
 
 class Controller:
@@ -30,10 +32,16 @@ class Controller:
         self.service = Service(self.cfg)
         self._server: uvicorn.Server | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self.bench: dict = {}
+        self.human_status: dict = {}
+        self.ui_token = secrets.token_urlsafe(24)
 
     # --- server ---------------------------------------------------------------
     def start_server(self) -> None:
         app = create_app(service=self.service)
+        from .ui import add_ui_routes
+
+        add_ui_routes(app, self)
         self._server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=self.cfg.port, log_level="warning"))
 
         def run():
@@ -140,16 +148,37 @@ class Controller:
     def set_paused(self, paused: bool) -> None:
         self.service.paused = paused
 
-    def balance_line(self) -> str:
+    def check_human(self) -> dict:
+        """Asks the workers' service for the balance: proves the key works. Cached for the menu."""
         human = self.service.chain.layer("human")
         if not human or not human.available():
-            return "Баланс: нет ключа"
-        future = asyncio.run_coroutine_threadsafe(self.service.balance(), self._loop) if self._loop else None
-        try:
-            value = future.result(timeout=15) if future else asyncio.run(self.service.balance())
-        except Exception as e:
-            return f"Баланс: ошибка ({str(e)[:40]})"
-        return f"Баланс: ${value:.2f}"
+            self.human_status = {"ok": False, "error": "нет ключа"}
+        else:
+            try:
+                self.human_status = {"ok": True, "balance": asyncio.run(self.service.balance())}
+            except Exception as e:
+                self.human_status = {"ok": False, "error": str(e)[:120]}
+        return self.human_status
+
+    def human_line(self) -> str:
+        st = getattr(self, "human_status", None) or {}
+        name = HUMAN_TITLES.get(self.cfg.human_provider, self.cfg.human_provider)
+        if not self.cfg.human_api_key:
+            return f"Люди ({name}): нет ключа"
+        if st.get("ok"):
+            return f"Люди ({name}): ✓ баланс ${st['balance']:.2f}"
+        if st:
+            return f"Люди ({name}): ⚠ {st.get('error', '')[:40]}"
+        return f"Люди ({name}): ключ есть"
+
+    def move_layer(self, layer_id: str, step: int) -> None:
+        layers = self.cfg.layers
+        if layer_id not in layers:
+            return
+        i = layers.index(layer_id)
+        j = max(0, min(len(layers) - 1, i + step))
+        layers.insert(j, layers.pop(i))
+        self._apply()
 
     # --- keys --------------------------------------------------------------------
     def add_key(self, secret: str, base_url: str = "") -> KeyEntry:
@@ -236,6 +265,34 @@ class Controller:
         (out.with_suffix(".json")).parent.mkdir(parents=True, exist_ok=True)
         out.with_suffix(".json").write_text(json.dumps(results, ensure_ascii=False, default=str))
         return bench.report_html(results, out, votes)
+
+    def start_bench(self, key_name: str | None) -> dict:
+        """Runs the comparison in a background thread; progress and results land in self.bench."""
+        if self.bench.get("running"):
+            raise ValueError("сравнение уже идёт")
+        specs = self.bench_specs(key_name)
+        if not specs:
+            raise ValueError("нет моделей с картинками для сравнения")
+        runs, _ = self.bench_estimate(specs)
+        state = {"running": True, "done": 0, "total": runs, "key": key_name, "started": time.time()}
+        self.bench = state
+
+        def work():
+            try:
+                report = self.run_bench(specs, progress=lambda d, t: state.update(done=d, total=t))
+                results = json.loads(report.with_suffix(".json").read_text())
+                state["report"] = str(report)
+                state["rows"] = [{"name": n, "model": results[n]["model"], "accuracy": results[n]["accuracy"],
+                                  "seconds": results[n]["seconds"], "usd_per_1000": results[n]["usd_per_1000"],
+                                  "errors": results[n]["errors"], "by_set": results[n]["by_set"]}
+                                 for n in bench.ranking(results)]
+            except Exception as e:
+                state["error"] = str(e)[:300]
+            state["running"] = False
+            state["finished"] = time.time()
+
+        threading.Thread(target=work, daemon=True, name="captcha-stack-bench").start()
+        return state
 
     def promote(self, model_names: list[str]) -> None:
         """Puts the given models first among the vision layers, in this order."""

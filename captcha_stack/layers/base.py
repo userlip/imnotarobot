@@ -22,6 +22,8 @@ class Result:
 
 class Layer:
     name = ""
+    # shown to people in notes and the window; `name` stays the stable id programs see
+    title = ""
     task_types: frozenset[str] = frozenset()
     # 1.0 means the answer is accepted without a confidence check
     min_confidence = 1.0

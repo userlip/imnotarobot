@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -43,6 +44,7 @@ class Service:
         self._ids = itertools.count(int(time.time()))
         self._running: set[asyncio.Task] = set()
         self.paused = False
+        self.recent: deque[dict[str, Any]] = deque(maxlen=100)
 
     def reconfigure(self, cfg: Config) -> None:
         """Swaps layers and limits; statistics and open tasks are kept."""
@@ -67,14 +69,23 @@ class Service:
         return task_id
 
     async def _run(self, job: Job) -> None:
+        started = time.time()
         try:
             if self.paused:
-                raise RuntimeError("solver is paused from the menu bar")
+                raise RuntimeError("решатель на паузе")
             job.result = await self.chain.solve(job.task)
         except Exception as e:
             job.error = str(e)
         finally:
             job.done.set()
+            r = job.result
+            self.recent.appendleft({
+                "at": started, "seconds": round(time.time() - started, 2), "type": job.task.get("type"),
+                "layer": r.layer if r else "",
+                "layerTitle": next((x.title for x in self.chain.layers if r and x.name == r.layer), r.layer if r else ""), "confidence": round(r.confidence, 2) if r else 0,
+                "cost": r.cost if r else 0.0, "lowConfidence": bool(r and r.meta.get("low_confidence")),
+                "error": job.error, "notes": (r.meta.get("tried", []) if r else []),
+            })
 
     async def report(self, task_id: int, retry: bool = False) -> int | None:
         job = self.jobs.get(task_id)

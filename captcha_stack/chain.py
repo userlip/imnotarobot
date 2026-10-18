@@ -104,14 +104,14 @@ class Chain:
 
     def _skip_reason(self, layer: Layer, kind: str, key: str) -> str:
         if not layer.available():
-            return "not configured"
+            return "нет ключа"
         if layer.name in self.state.rejected.get(key, ()):
-            return "its answer for this image was reported wrong"
+            return "его ответ на эту картинку уже отвергли"
         if self.state.unreliable(kind, layer.name):
-            return "skipped, most of its answers for this kind were reported wrong"
+            return "пропущен: большинство его ответов на такие капчи отвергли"
         limit = self.daily_limits.get(layer.name, 0)
         if limit and self.state.spent_today(layer.name) >= limit:
-            return f"daily limit ${limit:g} reached"
+            return f"исчерпан дневной лимит ${limit:g}"
         return ""
 
     async def solve(self, task: dict[str, Any]) -> Result:
@@ -123,12 +123,12 @@ class Chain:
                 continue
             reason = self._skip_reason(layer, kind, key)
             if reason:
-                notes.append(f"{layer.name}: {reason}")
+                notes.append(f"{layer.title or layer.name}: {reason}")
                 continue
             try:
                 r = await layer.solve(task)
             except Exception as e:  # any layer failure means: try the next one
-                notes.append(f"{layer.name}: {e}")
+                notes.append(f"{layer.title or layer.name}: {e}")
                 log.info("layer %s failed: %s", layer.name, e)
                 continue
             self.state.answered(kind, layer.name, r.cost)
@@ -139,14 +139,14 @@ class Chain:
             if twin:
                 r.meta["agreed_with"] = twin.layer
                 return r
-            notes.append(f"{layer.name}: unsure ({r.confidence:.2f})")
+            notes.append(f"{layer.title or layer.name}: не уверен ({r.confidence:.2f})")
             candidates.append(r)
         if candidates:
             best = max(candidates, key=lambda c: c.confidence)
             best.meta["low_confidence"] = True
             best.meta["tried"] = notes
             return best
-        raise Unsolvable("; ".join(notes) or f"no layer handles {task['type']}")
+        raise Unsolvable("; ".join(notes) or f"ни один слой не умеет {task['type']}")
 
     async def report_incorrect(self, task: dict[str, Any], result: Result) -> None:
         self.state.bad(kind_of(task), result.layer, image_key(task))

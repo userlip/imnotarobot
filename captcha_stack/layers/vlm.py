@@ -71,7 +71,7 @@ def last_json(text: str) -> dict[str, Any]:
                 pass
             start = text.rfind("{", 0, start)
         end = text.rfind("}", 0, end)
-    raise Unsolvable(f"model did not return JSON: {text[-200:]!r}")
+    raise Unsolvable(f"модель ответила не в нужном виде: {text[-150:]!r}")
 
 
 class VlmLayer(Layer):
@@ -80,6 +80,7 @@ class VlmLayer(Layer):
     def __init__(self, spec: ModelSpec, transport: httpx.AsyncBaseTransport | None = None):
         self.spec = spec
         self.name = f"vlm:{spec.name}"
+        self.title = spec.model or spec.name
         self.min_confidence = spec.min_confidence
         self.transport = transport
 
@@ -108,7 +109,7 @@ class VlmLayer(Layer):
             await asyncio.gather(*(one() for _ in range(votes - asked)))
             asked = votes
         if not answers:
-            raise Unsolvable("; ".join(dict.fromkeys(errors)) or "no answer")
+            raise Unsolvable("; ".join(dict.fromkeys(errors)) or "нет ответа")
         final, support = _consensus(task["type"], answers, same)
         confidence = 1.0 if votes == 1 else support / asked
         return Result(final, confidence, self.name, cost=cost,
@@ -127,7 +128,7 @@ class VlmLayer(Layer):
             def parse(j):
                 text = str(j.get("text", "")).strip()
                 if not text_fits(text, task):
-                    raise Unsolvable(f"answer {text!r} breaks the task constraints")
+                    raise Unsolvable(f"ответ {text!r} не подходит под условия задачи")
                 return text
 
             return ([imaging.to_png(big)] + extra, TEXT_PROMPT.format(hint=_text_hint(task)) + note, parse,
@@ -138,7 +139,7 @@ class VlmLayer(Layer):
             def parse(j):
                 tiles = sorted({int(x) for x in j.get("tiles", []) if 1 <= int(x) <= rows * cols})
                 if not tiles and not task.get("canNoAnswer"):
-                    raise Unsolvable("model selected no tiles")
+                    raise Unsolvable("модель не выбрала ни одной клетки")
                 return tiles
 
             marked = imaging.grid_marks(big, rows, cols)
@@ -151,7 +152,7 @@ class VlmLayer(Layer):
         def parse(j):
             pts = [(float(x), float(y)) for x, y in j.get("points", []) if 0 <= float(x) <= w and 0 <= float(y) <= h]
             if not pts:
-                raise Unsolvable("model returned no points inside the image")
+                raise Unsolvable("модель не указала точек внутри картинки")
             return pts
 
         def same(a, b):

@@ -100,8 +100,8 @@ async def ask(spec: ModelSpec, images: list[bytes], prompt: str,
 
 def _json_or_raise(r: httpx.Response) -> dict[str, Any]:
     if r.status_code != 200:
-        raise ProviderError(f"HTTP {r.status_code}: {r.text[:200]}")
+        raise ProviderError(f"сервис ответил HTTP {r.status_code}: {r.text[:200]}")
     try:
         return r.json()
     except ValueError as e:
-        raise ProviderError(f"not JSON: {r.text[:200]}") from e
+        raise ProviderError(f"сервис ответил не JSON: {r.text[:200]}") from e

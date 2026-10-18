@@ -14,6 +14,7 @@ class HumanLayer(Layer):
     """2Captcha / RuCaptcha API v2: workers plus their own AI, the last resort."""
 
     name = "human"
+    title = "Люди"
 
     def __init__(self, base_url: str, api_key: str, timeout: float = 180.0, poll_interval: float = 5.0,
                  transport: httpx.AsyncBaseTransport | None = None):
@@ -47,7 +48,7 @@ class HumanLayer(Layer):
                 if j.get("status") == "ready":
                     return Result(j["solution"], 1.0, self.name, cost=float(j.get("cost") or 0),
                                   meta={"remote_task_id": task_id})
-        raise Unsolvable(f"no answer from {self.base_url} in {self.timeout:.0f}s")
+        raise Unsolvable(f"нет ответа от {self.base_url} за {self.timeout:.0f} с")
 
     async def report_incorrect(self, result: Result) -> None:
         task_id = result.meta.get("remote_task_id")
