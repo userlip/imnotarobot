@@ -18,6 +18,8 @@ def wait_result(client, task_id, key="", timeout=5.0):
 
 
 def make(layers, **cfg):
+    import captcha_stack.config as config
+    cfg.setdefault("state_path", str(config.APP_DIR / "state.json"))
     return TestClient(create_app(Config(**cfg), layers))
 
 
@@ -67,3 +69,45 @@ def test_request_shaped_like_2captcha_api_v2_is_accepted():
         assert created["errorId"] == 0
         r = wait_result(c, created["taskId"], key="any")
         assert r["solution"]["text"] == "w0rd" and float(r["cost"]) == 0
+
+
+def test_legacy_in_res_php_text_flow_and_reportbad():
+    local, vlm = FakeLayer("local", [("abc", 0.95)]), FakeLayer("vlm", [("abd", 0.9)])
+    with make([local, vlm]) as c:
+        r = c.post("/in.php", data={"key": "k", "method": "base64", "body": "aGk=", "json": "1"}).json()
+        assert r["status"] == 1
+        task_id = r["request"]
+        for _ in range(100):
+            res = c.get("/res.php", params={"key": "k", "action": "get", "id": task_id}).text
+            if res != "CAPCHA_NOT_READY":
+                break
+            time.sleep(0.02)
+        assert res == "OK|abc"
+        assert c.get("/res.php", params={"action": "reportbad", "id": task_id}).text == "OK_REPORT_RECORDED"
+        assert local.reports == 1
+
+
+def test_legacy_file_upload_and_grid_answer_format():
+    grid = FakeLayer("vlm", [("x", 1.0)], types=("GridTask",))
+
+    async def solve(task):
+        from captcha_stack.layers import Result
+        assert (task["rows"], task["columns"], task["comment"]) == (4, 4, "select buses")
+        return Result({"click": [2, 5]}, 1.0, "vlm")
+
+    grid.solve = solve
+    with make([grid]) as c:
+        r = c.post("/in.php", data={"method": "post", "recaptcha": "1", "recaptcharows": "4", "recaptchacols": "4",
+                                    "textinstructions": "select buses"}, files={"file": ("c.png", b"\x89PNG")})
+        task_id = r.text.split("|")[1]
+        for _ in range(100):
+            res = c.get("/res.php", params={"action": "get", "id": task_id, "json": "1"}).json()
+            if res["request"] != "CAPCHA_NOT_READY":
+                break
+            time.sleep(0.02)
+        assert res == {"status": 1, "request": "click:2/5"}
+
+
+def test_legacy_rejects_unknown_method():
+    with make([FakeLayer("local", [("a", 1.0)])]) as c:
+        assert c.post("/in.php", data={"method": "geetest"}).text == "ERROR_BAD_PARAMETERS"

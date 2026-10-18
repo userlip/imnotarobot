@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from captcha_stack.chain import Chain
+from captcha_stack.chain import Chain, State, today
 from captcha_stack.layers import Unsolvable
 from helpers import FakeLayer
 
@@ -67,10 +67,43 @@ def test_report_skips_that_layer_for_the_same_image_and_is_forwarded():
 
 def test_layer_is_skipped_for_a_kind_after_most_of_its_answers_were_reported():
     local, vlm = FakeLayer("local", [("abc", 0.95)]), FakeLayer("vlm", [("abd", 0.9)])
-    chain = Chain([local, vlm], skip_after_reports=3)
+    chain = Chain([local, vlm], State(skip_after_reports=3))
     for i in range(3):
         task = {**TASK, "body": f"img{i}"}
         asyncio.run(chain.report_incorrect(task, solve(chain, task)))
     assert solve(chain, {**TASK, "body": "fresh"}).layer == "vlm"
     other_kind = {**TASK, "body": "fresh2", "comment": "type the red letters"}
     assert solve(chain, other_kind).layer == "local"
+
+
+def test_state_survives_a_restart(tmp_path):
+    path = str(tmp_path / "state.json")
+    local, vlm = FakeLayer("local", [("abc", 0.95)]), FakeLayer("vlm", [("abd", 0.9)])
+    chain = Chain([local, vlm], State(path))
+    asyncio.run(chain.report_incorrect(TASK, solve(chain)))
+    reborn = Chain([local, vlm], State(path))
+    assert solve(reborn).layer == "vlm"
+    assert reborn.state.daily[today()]["local"]["solved"] == 1
+
+
+def test_daily_limit_stops_a_paid_layer():
+    class Paid(FakeLayer):
+        async def solve(self, task):
+            r = await super().solve(task)
+            r.cost = 0.6
+            return r
+
+    human = Paid("human", [("ok", 1.0)], min_confidence=1.0)
+    chain = Chain([human], daily_limits={"human": 1.0})
+    solve(chain, {**TASK, "body": "a"})
+    solve(chain, {**TASK, "body": "b"})
+    with pytest.raises(Unsolvable, match="daily limit"):
+        solve(chain, {**TASK, "body": "c"})
+    assert human.calls == 2
+
+
+def test_rejected_memory_is_bounded():
+    state = State(max_rejected=3)
+    for i in range(5):
+        state.bad("k", "local", f"img{i}")
+    assert list(state.rejected) == ["img2", "img3", "img4"]

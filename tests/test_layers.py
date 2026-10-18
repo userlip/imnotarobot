@@ -1,11 +1,13 @@
 import asyncio
 import json
+import random
 
 import httpx
 import pytest
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
-from captcha_stack.layers import HumanLayer, LocalLayer, Unsolvable, VlmLayer
-from helpers import blank_image, text_image
+from captcha_stack.layers import HumanLayer, LocalLayer, Unsolvable
+from helpers import png_b64, text_image
 
 
 def run(coro):
@@ -23,44 +25,29 @@ def test_local_rejects_an_answer_that_breaks_constraints():
         run(LocalLayer().solve({"type": "ImageToTextTask", "body": text_image("ab3k7"), "numeric": 1}))
 
 
-def vlm_with(reply: str, seen: list | None = None) -> VlmLayer:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if seen is not None:
-            seen.append(json.loads(request.content))
-        return httpx.Response(200, json={"choices": [{"message": {"content": reply}}], "usage": {"total_tokens": 900}})
-
-    return VlmLayer("https://vlm.test/v1", "k", "qwen3-vl-plus", transport=httpx.MockTransport(handler))
-
-
-def test_vlm_converts_normalized_points_to_pixels():
-    layer = vlm_with('```json\n{"points": [[500, 500], [1000, 0]], "confidence": 0.8}\n```')
-    r = run(layer.solve({"type": "CoordinatesTask", "body": blank_image((200, 100)), "comment": "click the cat"}))
-    assert r.solution == {"coordinates": [{"x": 100, "y": 50}, {"x": 200, "y": 0}]}
-    assert (r.confidence, r.meta["tokens"]) == (0.8, 900)
-
-
-def test_vlm_grid_drops_tiles_outside_the_grid_and_sends_the_task():
-    seen: list = []
-    layer = vlm_with('{"tiles": [3, 1, 3, 17], "confidence": 0.9}', seen)
-    r = run(layer.solve({"type": "GridTask", "body": blank_image(), "comment": "select buses", "rows": 4, "columns": 4}))
-    assert r.solution == {"click": [1, 3]}
-    prompt = seen[0]["messages"][0]["content"][-1]["text"]
-    assert "4 rows and 4 columns" in prompt and "select buses" in prompt
-    assert seen[0]["messages"][0]["content"][0]["image_url"]["url"].startswith("data:image/png;base64,")
+def slider_pair(seed: int, w: int = 50):
+    rnd = random.Random(seed)
+    bg = Image.new("RGB", (320, 160))
+    d = ImageDraw.Draw(bg)
+    for _ in range(40):
+        x, y = rnd.randint(0, 320), rnd.randint(0, 160)
+        d.ellipse([x, y, x + rnd.randint(20, 80), y + rnd.randint(20, 80)], fill=tuple(rnd.randint(40, 255) for _ in range(3)))
+    bg = bg.filter(ImageFilter.GaussianBlur(2))
+    gx, gy = rnd.randint(120, 250), rnd.randint(20, 90)
+    mask = Image.new("L", (w, w), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, w - 1, w - 1], radius=10, fill=255)
+    piece = Image.new("RGBA", (w, w), (0, 0, 0, 0))
+    piece.paste(bg.crop((gx, gy, gx + w, gy + w)), (0, 0), mask)
+    bg.paste(ImageEnhance.Brightness(bg.crop((gx, gy, gx + w, gy + w))).enhance(0.4), (gx, gy), mask)
+    return png_b64(piece), png_b64(bg), gx, gy
 
 
-def test_vlm_text_answer_is_checked_against_constraints():
-    with pytest.raises(Unsolvable):
-        run(vlm_with('{"text": "abc", "confidence": 0.9}').solve({"type": "ImageToTextTask", "body": blank_image(), "numeric": 1}))
-
-
-def test_vlm_without_json_is_a_failure():
-    with pytest.raises(Unsolvable, match="did not return JSON"):
-        run(vlm_with("I cannot help with that.").solve({"type": "ImageToTextTask", "body": blank_image()}))
-
-
-def test_vlm_is_unavailable_without_a_key():
-    assert not VlmLayer("https://x", "", "m").available()
+@pytest.mark.parametrize("seed", range(10))
+def test_local_finds_the_slider_gap_corner(seed):
+    piece, bg, gx, gy = slider_pair(seed, w=[40, 50, 60][seed % 3])
+    r = run(LocalLayer().solve({"type": "SlideMatchTask", "target": piece, "background": bg}))
+    assert abs(r.solution["x"] - gx) <= 3 and abs(r.solution["y"] - gy) <= 3
+    assert r.confidence > 0.9 and r.meta["method"] == "ncc"
 
 
 def test_human_creates_polls_and_reports():

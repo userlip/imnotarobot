@@ -1,6 +1,37 @@
+"""Settings live in a JSON file; API keys live in the macOS Keychain, never in the file."""
+
+import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
+from typing import Any
+
+from .providers import ModelSpec
+
+APP_DIR = Path(os.environ.get("CAPTCHA_STACK_HOME", Path.home() / "Library" / "Application Support" / "captcha-stack"))
+KEYCHAIN_SERVICE = "captcha-stack"
+HUMAN_PRESETS = {"2captcha": "https://api.2captcha.com", "rucaptcha": "https://api.rucaptcha.com"}
+
+
+def get_secret(account: str) -> str:
+    try:
+        import keyring
+
+        return keyring.get_password(KEYCHAIN_SERVICE, account) or ""
+    except Exception:
+        return ""
+
+
+def set_secret(account: str, value: str) -> None:
+    import keyring
+
+    if value:
+        keyring.set_password(KEYCHAIN_SERVICE, account, value)
+    else:
+        try:
+            keyring.delete_password(KEYCHAIN_SERVICE, account)
+        except keyring.errors.PasswordDeleteError:
+            pass
 
 
 def _dashscope_key() -> str:
@@ -13,37 +44,61 @@ def _dashscope_key() -> str:
     return ""
 
 
+def model_key(spec: ModelSpec) -> str:
+    return (get_secret(f"model:{spec.name}")
+            or os.environ.get(f"{spec.name.upper().replace('-', '_')}_API_KEY", "")
+            or (_dashscope_key() if spec.provider == "dashscope" else ""))
+
+
 @dataclass
 class Config:
     client_key: str = ""
+    port: int = 8765
     layers: list[str] = field(default_factory=lambda: ["local", "vlm", "human"])
     ocr_min_confidence: float = 0.9
-    vlm_min_confidence: float = 0.7
-    vlm_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-    vlm_api_key: str = ""
-    vlm_model: str = "qwen3-vl-plus"
-    vlm_timeout: float = 60.0
-    human_base_url: str = "https://api.2captcha.com"
+    models: list[ModelSpec] = field(default_factory=list)
+    human_provider: str = "rucaptcha"
+    human_base_url: str = ""
     human_api_key: str = ""
     human_timeout: float = 180.0
     human_poll_interval: float = 5.0
+    # 0 = no limit
+    human_daily_limit_usd: float = 1.0
     # a layer is skipped for a captcha kind once it has this many reports and fails at least half of them
     skip_after_reports: int = 5
     task_ttl: float = 600.0
+    state_path: str = ""
+
+    def __post_init__(self):
+        self.human_base_url = (self.human_base_url or HUMAN_PRESETS.get(self.human_provider, "")).rstrip("/")
+        self.state_path = self.state_path or str(APP_DIR / "state.json")
 
     @classmethod
-    def from_env(cls) -> "Config":
-        e = os.environ.get
-        c = cls()
-        c.client_key = e("CLIENT_KEY", c.client_key)
-        if e("LAYERS"):
-            c.layers = [x.strip() for x in e("LAYERS").split(",") if x.strip()]
-        c.ocr_min_confidence = float(e("OCR_MIN_CONFIDENCE", c.ocr_min_confidence))
-        c.vlm_min_confidence = float(e("VLM_MIN_CONFIDENCE", c.vlm_min_confidence))
-        c.vlm_base_url = e("VLM_BASE_URL", c.vlm_base_url)
-        c.vlm_api_key = e("VLM_API_KEY") or _dashscope_key()
-        c.vlm_model = e("VLM_MODEL", c.vlm_model)
-        c.human_base_url = e("HUMAN_BASE_URL", c.human_base_url)
-        c.human_api_key = e("HUMAN_API_KEY", c.human_api_key)
-        c.human_timeout = float(e("HUMAN_TIMEOUT", c.human_timeout))
-        return c
+    def load(cls, path: Path | None = None, with_secrets: bool = True) -> "Config":
+        path = path or APP_DIR / "config.json"
+        raw: dict[str, Any] = json.loads(path.read_text()) if path.exists() else {}
+        names = {f.name for f in fields(cls)} - {"models", "human_api_key"}
+        cfg = cls(**{k: v for k, v in raw.items() if k in names})
+        if "models" in raw:
+            cfg.models = [ModelSpec(**m) for m in raw["models"]]
+        elif _dashscope_key():
+            cfg.models = [ModelSpec(name="qwen", provider="dashscope")]
+        if with_secrets:
+            for m in cfg.models:
+                m.api_key = m.api_key or model_key(m)
+            cfg.human_api_key = get_secret("human") or os.environ.get("HUMAN_API_KEY", "")
+        if os.environ.get("LAYERS"):
+            cfg.layers = [x.strip() for x in os.environ["LAYERS"].split(",") if x.strip()]
+        cfg.client_key = os.environ.get("CLIENT_KEY", cfg.client_key)
+        return cfg
+
+    def save(self, path: Path | None = None) -> None:
+        path = path or APP_DIR / "config.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        data = asdict(self)
+        data.pop("human_api_key")
+        for m in data["models"]:
+            m.pop("api_key", None)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2))
+        tmp.replace(path)
