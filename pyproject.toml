@@ -1,12 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "captcha-stack"
 version = "0.1.0"
 description = "Layered captcha solver with a 2Captcha-style API: local models, then a vision LLM, then human workers"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow"]
+dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "keyring", "rumps"]
+
+[project.scripts]
+captcha-stack = "captcha_stack.__main__:main"
+captcha-stack-menubar = "captcha_stack.menubar:main"
 
 [project.optional-dependencies]
 test = ["pytest"]
 
 [tool.pytest.ini_options]
 pythonpath = [".", "tests"]
+
+[tool.setuptools.packages.find]
+include = ["captcha_stack*"]
