@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
@@ -13,25 +14,36 @@ KEYCHAIN_SERVICE = "captcha-stack"
 HUMAN_PRESETS = {"2captcha": "https://api.2captcha.com", "rucaptcha": "https://api.rucaptcha.com"}
 
 
-def get_secret(account: str) -> str:
-    try:
-        import keyring
+# Secrets go through Apple's own `security` tool. An item written by the app itself is tied to that build's code
+# hash, so every rebuild lost access to it; an item written by /usr/bin/security stays readable by that tool.
+# Trade-off: the value is briefly visible in the tool's argument list while it is being saved.
+SECURITY = "/usr/bin/security"
+SECRET_SERVICE = "Captcha Stack"
+LEGACY_SERVICE = KEYCHAIN_SERVICE
 
-        return keyring.get_password(KEYCHAIN_SERVICE, account) or ""
-    except Exception:
-        return ""
+
+def get_secret(account: str) -> str:
+    r = subprocess.run([SECURITY, "find-generic-password", "-s", SECRET_SERVICE, "-a", account, "-w"],
+                       capture_output=True, text=True, check=False)
+    return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def set_secret(account: str, value: str) -> None:
-    import keyring
-
     if value:
-        keyring.set_password(KEYCHAIN_SERVICE, account, value)
+        r = subprocess.run([SECURITY, "add-generic-password", "-U", "-s", SECRET_SERVICE, "-a", account,
+                            "-l", f"Captcha Stack — {account}", "-w", value], capture_output=True, text=True, check=False)
+        if r.returncode != 0:
+            raise RuntimeError(f"Связка ключей не сохранила ключ: {r.stderr.strip()[:120]}")
     else:
-        try:
-            keyring.delete_password(KEYCHAIN_SERVICE, account)
-        except keyring.errors.PasswordDeleteError:
-            pass
+        subprocess.run([SECURITY, "delete-generic-password", "-s", SECRET_SERVICE, "-a", account],
+                       capture_output=True, check=False)
+
+
+def legacy_secret_exists(account: str) -> bool:
+    """A key saved by an older build that this build cannot read: the user has to enter it once more."""
+    r = subprocess.run([SECURITY, "find-generic-password", "-s", LEGACY_SERVICE, "-a", account],
+                       capture_output=True, check=False)
+    return r.returncode == 0
 
 
 def model_key(spec: ModelSpec) -> str:

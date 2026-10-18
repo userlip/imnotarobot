@@ -8,7 +8,6 @@ def selftest() -> int:
     import json
     import tempfile
 
-    import keyring
     import rumps  # noqa: F401
     import uvicorn  # noqa: F401
 
@@ -25,7 +24,14 @@ def selftest() -> int:
     from captcha_stack.menubar import ICON
     from captcha_stack.ui import PAGE
 
-    print(json.dumps({"icon": ICON.exists(), "page": PAGE.exists(), "keyring": type(keyring.get_keyring()).__module__, "expected": case["expected"],
+    from captcha_stack import config
+
+    probe = "__selftest__"
+    config.set_secret(probe, "ok")
+    keychain = config.get_secret(probe) == "ok"
+    config.set_secret(probe, "")
+
+    print(json.dumps({"icon": ICON.exists(), "page": PAGE.exists(), "keychain": keychain, "expected": case["expected"],
                       "solution": r.solution, "layer": r.layer, "confidence": round(r.confidence, 3)}))
     return 0
 

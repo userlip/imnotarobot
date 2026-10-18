@@ -16,3 +16,10 @@ def no_local_resellers(monkeypatch):
     import captcha_stack.discovery as discovery
 
     monkeypatch.setattr(discovery, "local_reseller_urls", lambda: [])
+
+
+@pytest.fixture(autouse=True)
+def no_real_keychain(monkeypatch):
+    import captcha_stack.config as config
+
+    monkeypatch.setattr(config, "legacy_secret_exists", lambda account: False)

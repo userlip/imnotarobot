@@ -47,7 +47,7 @@ def state(c: "Controller") -> dict[str, Any]:
         "layers": layers,
         "keys": [{"name": k.name, "provider": k.provider, "hint": k.hint, "baseUrl": k.base_url, "listable": k.listable,
                   "models": [{"id": mid, "enabled": on} for mid, on in c.key_models(k.name)]} for k in cfg.keys],
-        "human": {"provider": cfg.human_provider, "hasKey": bool(cfg.human_api_key),
+        "human": {"provider": cfg.human_provider, "hasKey": bool(cfg.human_api_key), "legacyKey": c.legacy_human_key,
                   "limit": cfg.human_daily_limit_usd, "status": c.human_status,
                   "spentToday": c.service.chain.state.spent_today("human")},
         "recent": list(c.service.recent)[:30],

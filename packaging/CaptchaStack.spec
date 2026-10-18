@@ -6,7 +6,7 @@ for pkg in ("ddddocr", "onnxruntime", "rumps", "WebKit"):
     datas += d
     binaries += b
     hiddenimports += h
-hiddenimports += collect_submodules("uvicorn") + collect_submodules("keyring.backends") + ["captcha_stack"]
+hiddenimports += collect_submodules("uvicorn") + ["captcha_stack"]
 hiddenimports += collect_submodules("captcha_stack")
 datas += collect_data_files("captcha_stack")
 

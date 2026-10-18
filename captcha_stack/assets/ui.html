@@ -210,7 +210,8 @@ function render(s) {
   if (document.activeElement !== $("humanLimit")) $("humanLimit").value = h.limit;
   if (document.activeElement !== $("humanProvider")) $("humanProvider").value = h.provider;
   const st = h.status || {};
-  $("humanState").innerHTML = !h.hasKey ? "Ключа нет — слой людей выключен." :
+  $("humanState").innerHTML = !h.hasKey && h.legacyKey ? '<span class="pill warn">введите ключ ещё раз</span> Ключ сохранила прошлая версия, macOS не отдаёт его новой. После повторного ввода он сохранится навсегда.' :
+    !h.hasKey ? "Ключа нет — слой людей выключен." :
     st.ok ? `<span class="pill ok">ключ работает</span> баланс ${money(st.balance)} · потрачено сегодня ${money(h.spentToday)} из ${h.limit ? money(h.limit) : "без лимита"}` :
     st.error ? `<span class="pill bad">ошибка</span> ${esc(st.error)}` : `Ключ сохранён. <button id="checkHuman">Проверить</button>`;
 

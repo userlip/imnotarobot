@@ -70,7 +70,7 @@ def test_saving_a_human_key_checks_it_and_reports_balance(ui, monkeypatch):
     monkeypatch.setattr(c.service, "balance", balance)
     r = client.post("/api/ui/human", json={"provider": "rucaptcha", "key": "abc123", "limit": "2"}).json()
     assert r["ok"] and r["message"] == "Ключ работает, баланс $3.20."
-    assert r["state"]["human"] == {"provider": "rucaptcha", "hasKey": True, "limit": 2.0,
+    assert r["state"]["human"] == {"provider": "rucaptcha", "hasKey": True, "legacyKey": False, "limit": 2.0,
                                    "status": {"ok": True, "balance": 3.2}, "spentToday": 0.0}
     assert c.human_line() == "Люди (RuCaptcha): ✓ баланс $3.20"
 
@@ -104,3 +104,14 @@ def test_layers_move_and_toggle(ui):
     assert c.cfg.layers == ["human", "local"]
     r = client.post("/api/ui/toggle-layer", json={"id": "local"}).json()
     assert [(x["id"], x["enabled"]) for x in r["state"]["layers"]] == [("human", True), ("local", False)]
+
+
+def test_key_left_by_an_older_build_asks_to_be_entered_again(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "get_secret", lambda a: "")
+    monkeypatch.setattr(config, "legacy_secret_exists", lambda a: a == "human")
+    monkeypatch.setattr(control, "LAUNCH_AGENT", tmp_path / "agent.plist")
+    c = Controller(Config.load())
+    assert c.human_line() == "Люди (RuCaptcha): введите ключ ещё раз"
+    monkeypatch.setattr(config, "set_secret", lambda a, v: None)
+    c.set_human(key="new")
+    assert not c.legacy_human_key

@@ -34,6 +34,7 @@ class Controller:
         self._loop: asyncio.AbstractEventLoop | None = None
         self.bench: dict = {}
         self.human_status: dict = {}
+        self.legacy_human_key = not self.cfg.human_api_key and config_mod.legacy_secret_exists("human")
         self.ui_token = secrets.token_urlsafe(24)
 
     # --- server ---------------------------------------------------------------
@@ -139,6 +140,7 @@ class Controller:
             self.cfg.human_base_url = HUMAN_PRESETS[provider]
         if key is not None:
             config_mod.set_secret("human", key.strip())
+            self.legacy_human_key = False
         if daily_limit is not None:
             if daily_limit < 0:
                 raise ValueError("лимит не может быть отрицательным")
@@ -164,7 +166,7 @@ class Controller:
         st = getattr(self, "human_status", None) or {}
         name = HUMAN_TITLES.get(self.cfg.human_provider, self.cfg.human_provider)
         if not self.cfg.human_api_key:
-            return f"Люди ({name}): нет ключа"
+            return f"Люди ({name}): введите ключ ещё раз" if self.legacy_human_key else f"Люди ({name}): нет ключа"
         if st.get("ok"):
             return f"Люди ({name}): ✓ баланс ${st['balance']:.2f}"
         if st:
