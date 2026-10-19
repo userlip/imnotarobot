@@ -1,58 +1,115 @@
-# I'm Not a Robot · imnotarobot
+# I'm Not a Robot
 
 **English** · [Русский](README.ru.md)
 
-A captcha solver that lives in the macOS menu bar. Programs talk to it through the 2Captcha / RuCaptcha API (`createTask` / `getTaskResult`, `in.php` / `res.php`), agents through an MCP server. Every captcha climbs a ladder from free to paid:
+[![tests](https://github.com/zigansh1n/imnotarobot/actions/workflows/tests.yml/badge.svg)](https://github.com/zigansh1n/imnotarobot/actions/workflows/tests.yml)
+![license](https://img.shields.io/badge/license-MIT-black)
+![macOS](https://img.shields.io/badge/platform-macOS-black)
+![python](https://img.shields.io/badge/python-3.11%2B-black)
 
-1. **Local model**: ddddocr and piece matching on this Mac. Text captchas and sliders, free, milliseconds.
-2. **Vision model** (Gemini Flash by default, any OpenAI-compatible endpoint works): text, "select all buses" grids, clicks on a picture. One request per captcha; a second one only when the answer disagrees with the local model. A silent service gets one immediate retry, then the next step takes over.
-3. **Backup vision model** (Gemini High): when the first one is unsure or wrong.
-4. **Browser**: reCAPTCHA v2/v3, hCaptcha and Turnstile checkboxes. An invisible Chrome ticks the box and hands picture grids and hCaptcha canvas tasks to the vision model.
-5. **RuCaptcha / 2Captcha**: human workers, the last and only paid step.
+**A free-first captcha solver for macOS.** A drop-in replacement for the 2Captcha / RuCaptcha API that tries free solvers first — a local model, then a free vision model, then an invisible browser — and pays human workers only when nothing else worked. Comes with a menu bar app and an MCP server for AI agents.
 
-The next step runs when the previous one failed, was unsure, or cannot do that kind of captcha. Two unsure steps that agree are accepted.
+![I'm Not a Robot: the window and the menu bar panel, demo numbers](docs/images/hero.png)
 
-Feedback loop:
-- `reportIncorrect` remembers that a step was wrong on that image; with `"retry": true` the next step solves it right away.
-- A step that is wrong on most captchas of one kind (type + instruction) is skipped for that kind.
-- Complaints about human answers are forwarded to RuCaptcha / 2Captcha, which refunds them.
+## Why
 
-Next on the roadmap: hands for the model, a toolset with which the vision model solves any captcha on its own in a look → act → check loop (see `OPEN.md`).
+- **Free by default.** With a free Gemini API key most captchas never reach the paid step.
+- **No code changes.** Any program that speaks the 2Captcha or RuCaptcha API works after changing one address.
+- **A ladder, not a single bet.** Local model → vision model → backup vision model → browser → humans. A step that is unsure, wrong or silent hands the captcha to the next one.
+- **It learns from mistakes.** Report a wrong answer and the step is no longer used on that picture; a step that keeps failing on a kind of captcha is skipped for that kind; complaints about human answers go to the service, which refunds them.
+- **You see everything.** Journal of every captcha with the picture, the answer and the path it took; daily money limits; side-by-side model comparison.
+- **Agents welcome.** An MCP server lets Claude, Cursor and other agents solve captchas through the app.
 
-The app speaks the system language: English and Russian for now.
+## Quick start
 
-## Run
+1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications.
+2. Get a free Gemini key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into **Keys and models**. The right models switch on by themselves.
+3. In your program, change the captcha service address to `http://127.0.0.1:8765` and the API key to the access key from **Connection**.
 
-Build the app with `packaging/build.sh`; it installs into `~/Applications`. Keys, models, the order of steps and daily limits are set in its window. Keys live in the macOS Keychain.
+Optional: add a RuCaptcha or 2Captcha key as the last, paid step.
 
-Without the app:
+## How it works
 
-```bash
-uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -e ".[test]"
-.venv/bin/python -m imnotarobot --port 8765
+| Step | Solves | Cost | Time |
+|---|---|---|---|
+| 1. Local model (ddddocr, piece matching) | text, sliders | free | milliseconds |
+| 2. Vision model (Gemini Flash by default) | text, picture grids, clicks | free tier | 3–8 s |
+| 3. Backup vision model (Gemini with thinking) | what step 2 was unsure about | free tier | 10–50 s |
+| 4. Browser (invisible Chrome) | reCAPTCHA v2/v3, hCaptcha, Turnstile | free | 3 s – 2 min |
+| 5. RuCaptcha / 2Captcha | anything | paid | 10–60 s |
+
+## Measured results
+
+On our test set and the official demo pages, October 2026. Small samples — a reproducible benchmark is on the [roadmap](docs/roadmap.md).
+
+| Captcha | Result |
+|---|---|
+| Text, picture grids (vision model) | 100% |
+| Clicks on real captchas (vision model) | 69–72% of 39 |
+| reCAPTCHA v2 demo (browser) | accepted by Google 2 of 3, ~130 s |
+| reCAPTCHA v3, Turnstile (browser) | token in 3–4 s |
+| hCaptcha demo (browser) | token in 4 of 6 |
+
+## Compared with
+
+| | I'm Not a Robot | 2Captcha / CapSolver | OhMyCaptcha | hcaptcha-challenger |
+|---|---|---|---|---|
+| Price | free first, paid last | paid per captcha | free | free |
+| Drop-in 2Captcha API | ✓ | ✓ | YesCaptcha API | — |
+| Captcha kinds | 8 own + any via humans | 30+ | 19 | hCaptcha |
+| Desktop app, journal, limits | ✓ | web dashboard | — | — |
+| MCP for agents | ✓ | ✓ | — | — |
+| Runs on servers / Docker | planned | ✓ | ✓ | ✓ |
+
+## Use from code
+
+```python
+import time, requests
+
+API, KEY = "http://127.0.0.1:8765", "your-access-key"
+task = requests.post(f"{API}/createTask", json={"clientKey": KEY, "task": {
+    "type": "RecaptchaV2TaskProxyless", "websiteURL": "https://example.com/login", "websiteKey": "SITE_KEY"}}).json()
+while (r := requests.post(f"{API}/getTaskResult", json={"clientKey": KEY, "taskId": task["taskId"]}).json())["status"] == "processing":
+    time.sleep(2)
+print(r["solution"]["gRecaptchaResponse"], "solved by", r["layer"])
 ```
 
-| Variable | Default | What |
-|---|---|---|
-| `LAYERS` | `local,vlm,browser,human` | order of steps |
-| `HUMAN_API_KEY` | — | 2Captcha or RuCaptcha key; without it the last step is off |
-| `CLIENT_KEY` | — | requests without it are rejected |
+The old API (`in.php` / `res.php`) works too. Besides the 2Captcha fields, `getTaskResult` returns `layer`, `confidence`, `notes` (what was tried before) and `lowConfidence`.
+
+### MCP
+
+```json
+{"mcpServers": {"imnotarobot": {"command": "/Applications/ImNotARobot.app/Contents/MacOS/ImNotARobot", "args": ["--mcp"]}}}
+```
+
+Tools: `solve_image_captcha`, `solve_token_captcha`, `report_wrong`, `captcha_status`.
 
 ## Task types
 
 | Type | local | vision | browser | humans |
 |---|---|---|---|---|
-| `ImageToTextTask` (text on a picture) | ✓ | ✓ | | ✓ |
-| `GridTask` (grid, answer is tile numbers from 1) | | ✓ | | ✓ |
-| `CoordinatesTask` (where to click, answer in pixels) | | ✓ | | ✓ |
-| `SlideMatchTask` (own: `target` + `background`, answer `x`, `y`) | ✓ | | | |
+| `ImageToTextTask` | ✓ | ✓ | | ✓ |
+| `GridTask` (answer is tile numbers from 1) | | ✓ | | ✓ |
+| `CoordinatesTask` (answer in pixels) | | ✓ | | ✓ |
+| `SlideMatchTask` (own: `target` + `background`) | ✓ | | | |
 | `RecaptchaV2TaskProxyless`, `RecaptchaV3TaskProxyless`, `HCaptchaTaskProxyless`, `TurnstileTaskProxyless` | | | ✓ | ✓ |
-| Any other 2Captcha type (rotate, GeeTest…) | | | | ✓ |
+| Any other 2Captcha type | | | | ✓ |
 
-Besides the 2Captcha fields, `getTaskResult` returns `layer`, `confidence`, `notes` (what was tried before) and `lowConfidence`. Step statistics: `GET /stats`.
-
-## Tests
+## Build from source
 
 ```bash
+uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -e ".[test]" pyinstaller
 .venv/bin/python -m pytest -q
+packaging/build.sh          # builds ImNotARobot.app into ~/Applications
+.venv/bin/python -m imnotarobot --port 8765   # the server alone, no window
 ```
+
+The app speaks the system language: English or Russian.
+
+## Responsible use
+
+Use it on your own sites, for testing, and for automation you are allowed to run. Respect the terms of the sites you visit. The project does not target any particular site.
+
+## License
+
+[MIT](LICENSE)
