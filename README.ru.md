@@ -49,6 +49,17 @@
 
 Пример на Python, MCP и список видов заданий — в [английском README](README.md#use-from-code): они одинаковые для обоих языков. Старое API (`in.php` / `res.php`) тоже работает.
 
+## Сервер (Docker)
+
+То же API и MCP на Linux, без окна:
+
+```bash
+docker build -t imnotarobot .
+docker run -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=ваш-ключ-доступа -v imnotarobot:/data imnotarobot
+```
+
+`HUMAN_API_KEY` (и `HUMAN_PROVIDER=2captcha`, если нужно) добавляет платную последнюю ступень. Ключи лежат в `/data/secrets.json`, читать его может только сервер.
+
 ## Сборка из исходников
 
 ```bash

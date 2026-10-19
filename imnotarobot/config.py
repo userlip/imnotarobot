@@ -28,13 +28,44 @@ SECRET_SERVICE = "Captcha Stack"
 LEGACY_SERVICE = KEYCHAIN_SERVICE
 
 
+def _secret_file() -> Path:
+    return Path(APP_DIR) / "secrets.json"
+
+
+def _file_secrets() -> dict[str, str]:
+    try:
+        return json.loads(_secret_file().read_text())
+    except (OSError, ValueError):
+        return {}
+
+
+def keychain() -> bool:
+    """Off a Mac (servers, Docker) secrets live in a file only the owner can read."""
+    return os.path.exists(SECURITY)
+
+
 def get_secret(account: str) -> str:
+    if not keychain():
+        return _file_secrets().get(account, "")
     r = subprocess.run([SECURITY, "find-generic-password", "-s", SECRET_SERVICE, "-a", account, "-w"],
                        capture_output=True, text=True, check=False)
     return r.stdout.strip() if r.returncode == 0 else ""
 
 
 def set_secret(account: str, value: str) -> None:
+    if not keychain():
+        data = _file_secrets()
+        if value:
+            data[account] = value
+        else:
+            data.pop(account, None)
+        path = _secret_file()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.touch(mode=0o600)
+        tmp.write_text(json.dumps(data))
+        tmp.replace(path)
+        return
     if value:
         r = subprocess.run([SECURITY, "add-generic-password", "-U", "-s", SECRET_SERVICE, "-a", account,
                             "-l", f"Captcha Stack — {account}", "-w", value], capture_output=True, text=True, check=False)
@@ -47,6 +78,8 @@ def set_secret(account: str, value: str) -> None:
 
 def legacy_secret_exists(account: str) -> bool:
     """A key saved by an older build that this build cannot read: the user has to enter it once more."""
+    if not keychain():
+        return False
     r = subprocess.run([SECURITY, "find-generic-password", "-s", LEGACY_SERVICE, "-a", account],
                        capture_output=True, check=False)
     return r.returncode == 0

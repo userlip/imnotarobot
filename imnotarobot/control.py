@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import plistlib
 import secrets
 import sys
@@ -67,7 +68,7 @@ class Controller:
                     continue
         raise RuntimeError(tr("порты {first}–{last} заняты другими программами", first=self.cfg.port, last=self.cfg.port + 19))
 
-    def start_server(self) -> None:
+    def start_server(self, host: str = "127.0.0.1") -> None:
         port = self.free_port()
         if port != self.cfg.port:
             self.port_note = tr("Порт {port} занят другой программой — работаю на {actual}. Направьте программы сюда.", port=self.cfg.port, actual=port)
@@ -76,7 +77,7 @@ class Controller:
         from .ui import add_ui_routes
 
         add_ui_routes(app, self)
-        self._server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning"))
+        self._server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
 
         def run():
             self._loop = asyncio.new_event_loop()
@@ -87,11 +88,23 @@ class Controller:
 
     def _write_runtime(self) -> None:
         """Lets other programs on this Mac find the running solver without being told its port."""
-        import os
-
         path = Path(config_mod.APP_DIR) / "runtime.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"address": self.address, "pid": os.getpid(), "started": time.time()}))
+
+    def setup_from_env(self) -> list[str]:
+        """Servers are configured by environment: GEMINI_API_KEY (or any vision key) and HUMAN_API_KEY."""
+        done = []
+        for var in ("GEMINI_API_KEY", "VISION_API_KEY"):
+            secret = os.environ.get(var, "").strip()
+            if secret and not any(config_mod.get_secret(f"key:{k.name}") == secret for k in self.cfg.keys):
+                entry = self.add_key(secret, os.environ.get("VISION_BASE_URL", ""))
+                done.append(f"{var}: {entry.name}, {', '.join(m.model for m in self.cfg.models if m.key == entry.name) or '—'}")
+        human = os.environ.get("HUMAN_API_KEY", "").strip()
+        if human and config_mod.get_secret("human") != human:
+            self.set_human(provider=os.environ.get("HUMAN_PROVIDER") or None, key=human)
+            done.append("HUMAN_API_KEY")
+        return done
 
     def stop_server(self) -> None:
         if self._server:

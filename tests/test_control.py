@@ -193,3 +193,27 @@ def test_a_gemini_key_switches_its_best_models_on_at_once(ctl, monkeypatch):
     ctl.add_key("AIza-free-key")
     assert [m.model for m in ctl.cfg.models] == ["gemini-3-flash-preview"]
     assert ctl.cfg.layers == ["local", "vlm:gemini/gemini-3-flash-preview", "browser", "human"]
+
+
+def test_off_a_mac_secrets_live_in_a_private_file(tmp_path, monkeypatch):
+    import importlib
+    import os
+
+    from imnotarobot import config as cfg_mod
+
+    real = importlib.reload(cfg_mod)
+    monkeypatch.setattr(real, "SECURITY", str(tmp_path / "no-security-tool"))
+    monkeypatch.setattr(real, "APP_DIR", tmp_path)
+    real.set_secret("key:gemini", "AIza-x")
+    assert real.get_secret("key:gemini") == "AIza-x" and not real.legacy_secret_exists("human")
+    assert oct(os.stat(tmp_path / "secrets.json").st_mode)[-3:] == "600"
+    real.set_secret("key:gemini", "")
+    assert real.get_secret("key:gemini") == ""
+
+
+def test_server_takes_its_keys_from_the_environment(ctl, monkeypatch):
+    fake_detect(monkeypatch, "gemini", [("gemini-3-flash-preview", True)])
+    monkeypatch.setenv("GEMINI_API_KEY", "AIza-env")
+    lines = ctl.setup_from_env()
+    assert lines == ["GEMINI_API_KEY: gemini, gemini-3-flash-preview"] and ctl.secrets["key:gemini"] == "AIza-env"
+    assert ctl.setup_from_env() == []

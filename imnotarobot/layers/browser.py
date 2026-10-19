@@ -10,6 +10,7 @@ import html
 import io
 import logging
 import random
+import sys
 import time
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -102,7 +103,8 @@ class BrowserLayer(Layer):
         self._slots = asyncio.Semaphore(parallel)
 
     def available(self) -> bool:
-        return any(p.exists() for p in CHROME_PATHS)
+        # off a Mac the browser bundled with patchright is used (`patchright install chromium`)
+        return sys.platform != "darwin" or any(p.exists() for p in CHROME_PATHS)
 
     async def solve(self, task: dict[str, Any]) -> Result:
         kind = KINDS[task["type"]]
@@ -117,7 +119,8 @@ class BrowserLayer(Layer):
         async with self._slots:
             try:
                 async with async_playwright() as pw:
-                    browser = await pw.chromium.launch(channel="chrome", headless=True, proxy=proxy_of(task))
+                    channel = "chrome" if any(p.exists() for p in CHROME_PATHS) else None
+                    browser = await pw.chromium.launch(channel=channel, headless=True, proxy=proxy_of(task))
                     try:
                         ctx = await browser.new_context(locale="en-US", user_agent=task.get("userAgent") or None)
                         page = await ctx.new_page()

@@ -59,7 +59,7 @@ On our test set and the official demo pages, October 2026. Small samples — a r
 | Captcha kinds | 8 own + any via humans | 30+ | 19 | hCaptcha |
 | Desktop app, journal, limits | ✓ | web dashboard | — | — |
 | MCP for agents | ✓ | ✓ | — | — |
-| Runs on servers / Docker | planned | ✓ | ✓ | ✓ |
+| Runs on servers / Docker | ✓ | ✓ | ✓ | ✓ |
 
 ## Use from code
 
@@ -94,6 +94,17 @@ Tools: `solve_image_captcha`, `solve_token_captcha`, `report_wrong`, `captcha_st
 | `SlideMatchTask` (own: `target` + `background`) | ✓ | | | |
 | `RecaptchaV2TaskProxyless`, `RecaptchaV3TaskProxyless`, `HCaptchaTaskProxyless`, `TurnstileTaskProxyless` | | | ✓ | ✓ |
 | Any other 2Captcha type | | | | ✓ |
+
+## Server (Docker)
+
+The same API and MCP on Linux, without the window:
+
+```bash
+docker build -t imnotarobot .
+docker run -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=your-access-key -v imnotarobot:/data imnotarobot
+```
+
+`HUMAN_API_KEY` (and `HUMAN_PROVIDER=2captcha` if needed) adds the paid last step. Keys are kept in `/data/secrets.json`, readable only by the server.
 
 ## Build from source
 

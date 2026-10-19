@@ -1,0 +1,8 @@
+.venv
+build
+dist
+design
+docs
+tests
+.git
+*.egg-info
