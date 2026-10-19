@@ -20,6 +20,6 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="ImNotARobot", console=False, argv_emulation=False)
 coll = COLLECT(exe, a.binaries, a.datas, name="ImNotARobot")
 app = BUNDLE(coll, name="ImNotARobot.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
-             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.3.0", "CFBundleDisplayName": "ImNotARobot", "CFBundleName": "ImNotARobot", "LSHasLocalizedDisplayName": True,
+             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.4.1", "CFBundleDisplayName": "ImNotARobot", "CFBundleName": "ImNotARobot", "LSHasLocalizedDisplayName": True,
                          "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "ru"],
                          "NSHumanReadableCopyright": "ziganshin"})
