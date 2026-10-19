@@ -7,6 +7,7 @@ from .config import Config
 from .layers import Layer
 from .legacy import add_legacy_routes
 from .service import Service
+from . import __version__
 
 
 def _error(code: str, description: str) -> JSONResponse:
@@ -85,7 +86,7 @@ def create_app(cfg: Config | None = None, layers: list[Layer] | None = None,
 
     @app.get("/health")
     async def health():
-        return {"ok": True, "service": "captcha-stack", "paused": svc.paused,
+        return {"ok": True, "service": "captcha-stack", "app": "imnotarobot", "version": __version__, "paused": svc.paused,
                 "layers": [x.name for x in svc.chain.layers if x.available()]}
 
     @app.get("/stats")

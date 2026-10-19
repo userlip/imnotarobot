@@ -8,7 +8,7 @@ from imnotarobot.discovery import DetectError, detect
 
 def fake_world(accepting: str, models: dict, calls: list):
     """Every provider rejects the key except `accepting`, which lists `models`."""
-    hosts = {"api.openai.com": "openai", "dashscope.aliyuncs.com": "dashscope", "dashscope-intl.aliyuncs.com": "dashscope-intl",
+    hosts = {"api.openai.com": "openai", "api.deepseek.com": "deepseek", "dashscope.aliyuncs.com": "dashscope", "dashscope-intl.aliyuncs.com": "dashscope-intl",
              "api.mistral.ai": "mistral", "openrouter.ai": "openrouter", "api.x.ai": "xai", "api.groq.com": "groq",
              "api.anthropic.com": "anthropic", "generativelanguage.googleapis.com": "gemini", "reseller.example": "custom"}
 
@@ -43,7 +43,7 @@ def test_prefix_goes_straight_to_the_provider():
 def test_unprefixed_key_is_probed_until_someone_accepts():
     found, calls = run("sk-plain", "dashscope-intl", {"data": [{"id": "qwen3-vl-plus"}, {"id": "qwen-max"}, {"id": "text-embedding-v3"}]})
     assert found.provider == "dashscope-intl"
-    assert [c[0] for c in calls][:3] == ["openai", "dashscope", "dashscope-intl"]
+    assert [c[0] for c in calls][:3] == ["openai", "deepseek", "dashscope"]
     assert [(m.id, m.vision) for m in found.models] == [("qwen3-vl-plus", True), ("qwen-max", False)]
 
 
@@ -103,4 +103,9 @@ def test_newest_flash_and_its_thinking_variant_are_recommended():
     assert recommended_models(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-pro"]) == ["gemini-3-flash-preview"]
     assert recommended_models(["gemini-3.8-flash-low", "gemini-3.8-flash-high", "gemini-3.5-flash", "gemini-3.8-flash-image"]) == \
         ["gemini-3.8-flash-low", "gemini-3.8-flash-high"]
-    assert recommended_models(["gpt-4o", "qwen-vl-max"]) == []
+    assert recommended_models(["gpt-4o", "qwen-vl-max"]) == ["qwen-vl-max"]
+    assert recommended_models(["gpt-5", "gpt-5-mini", "gpt-4.1-mini", "gpt-5-nano"]) == ["gpt-5-mini"]
+    assert recommended_models(["deepseek-flash", "deepseek-v4-pro"]) == ["deepseek-flash"]
+    assert recommended_models(["claude-opus-5", "claude-haiku-5-5", "claude-3-5-haiku"]) == ["claude-haiku-5-5"]
+    assert recommended_models(["openai/gpt-5-mini", "google/gemini-3-flash-preview"]) == ["google/gemini-3-flash-preview"]
+    assert recommended_models(["llava", "whisper-1"]) == []

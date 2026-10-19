@@ -15,7 +15,7 @@ from .i18n import tr
 # prefixes are a hint only; every guess is confirmed by an authenticated request
 PREFIX_HINTS = [("sk-ant-", "anthropic"), ("AIza", "gemini"), ("sk-or-", "openrouter"), ("xai-", "xai"), ("gsk_", "groq")]
 # tried in this order when the prefix says nothing
-PROBE_ORDER = ["openai", "dashscope", "dashscope-intl", "mistral", "openrouter", "xai", "groq", "anthropic", "gemini"]
+PROBE_ORDER = ["openai", "deepseek", "dashscope", "dashscope-intl", "mistral", "openrouter", "xai", "groq", "anthropic", "gemini"]
 
 # names of models that take images, for providers whose model list does not say so
 VISION_PATTERNS = {
@@ -23,6 +23,7 @@ VISION_PATTERNS = {
     "dashscope": r"(vl|omni|qvq)",
     "dashscope-intl": r"(vl|omni|qvq)",
     "gemini": r"^gemini",
+    "deepseek": r"^deepseek-flash",
     "anthropic": r"^claude",
     "xai": r"(vision|grok-4|grok-5)",
     "groq": r"(llama-4|vision)",
@@ -30,7 +31,7 @@ VISION_PATTERNS = {
 }
 NOT_CHAT = r"(embed|tts|whisper|transcri|audio|realtime|dall-e|imagen|veo|sora|moderation|search|image-gen|-image$|gpt-image)"
 # resellers serve models of many makers, so any maker's vision naming counts
-VISION_ANY = r"(claude|gemini|gpt-4o|gpt-4\.1|gpt-5|gpt-6|o3|o4|vl|omni|qvq|pixtral|llama-4|vision|grok-4|grok-5)"
+VISION_ANY = r"(claude|gemini|deepseek-flash|gpt-4o|gpt-4\.1|gpt-5|gpt-6|o3|o4|vl|omni|qvq|pixtral|llama-4|vision|grok-4|grok-5)"
 
 
 @dataclass
@@ -133,14 +134,40 @@ async def _try_reseller(client: httpx.AsyncClient, key: str, base: str) -> Detec
     return None
 
 
-def recommended_models(ids: list[str]) -> list[str]:
-    """The Gemini Flash models worth switching on for captchas: the newest fast one, then its thinking variant.
+# fast vision families of each maker, best first; the newest version in a family wins
+FAMILIES = [r"gemini-([\d.]+)-flash", r"deepseek-flash", r"gpt-([\d.]+)-mini", r"claude-(?:[\d.-]+-)?haiku(?:-[\d-]+)?",
+            r"qwen([\d.]*)-vl-(?:plus|max)", r"grok-([\d.]+)(?:-fast)?(?:-vision)?", r"pixtral-large"]
 
-    Measured on our captcha set: Flash solves text and grids fully and most clicks; the thinking variant
-    rescues a few clicks the fast one misses. Lite, image, audio and embedding variants are weaker or unrelated.
+
+def _newest(ids: list[str], family: str) -> str | None:
+    found = []
+    for mid in ids:
+        m = re.search(family, mid.split("/")[-1])
+        if m and not re.search(r"lite|nano|image|tts|audio|embed|live|exp|realtime", mid):
+            nums = tuple(int(x) for x in re.findall(r"\d+", m.group(0)) if len(x) < 6)
+            found.append((nums, "preview" not in mid, -len(mid), mid))
+    return max(found)[3] if found else None
+
+
+def recommended_models(ids: list[str]) -> list[str]:
+    """Models worth switching on for captchas when a key is added, whatever the maker.
+
+    Gemini gets its fast Flash plus the thinking variant: on our captcha set the thinking one rescues a few
+    clicks the fast one misses. Other makers get their newest fast vision model.
     """
+    gemini = _gemini(ids)
+    if gemini:
+        return gemini
+    for family in FAMILIES[1:]:
+        best = _newest(ids, family)
+        if best:
+            return [best]
+    return []
+
+
+def _gemini(ids: list[str]) -> list[str]:
     def version(mid: str) -> tuple:
-        m = re.match(r"(?:models/)?gemini-([\d.]+)-flash", mid)
+        m = re.match(r"gemini-([\d.]+)-flash", mid.split("/")[-1])
         return tuple(int(x) for x in m.group(1).split(".")) if m else ()
 
     flash = [m for m in ids if version(m) and not re.search(r"lite|image|tts|audio|embed|live|exp", m)]

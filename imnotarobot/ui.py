@@ -135,6 +135,18 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     def failed(e: Exception) -> JSONResponse:
         return JSONResponse({"ok": False, "error": str(e), "state": state(c)}, status_code=400)
 
+    @app.post("/app/open")
+    async def open_from_another_app(request: Request):
+        """Other programs on this Mac (spros and the like) bring the window up; they send the access key."""
+        b = await body(request)
+        if c.cfg.require_client_key and b.get("clientKey") != c.cfg.client_key:
+            return JSONResponse({"ok": False, "error": tr("нет доступа")}, status_code=403)
+        hook = c.hooks.get("open-window")
+        if hook is None:
+            return JSONResponse({"ok": False, "error": tr("это доступно только в приложении")}, status_code=409)
+        hook(str(b.get("view") or "today"))
+        return {"ok": True}
+
     @app.get("/ui", response_class=HTMLResponse)
     def page():
         return FileResponse(PAGE)

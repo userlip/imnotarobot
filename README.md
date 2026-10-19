@@ -7,13 +7,13 @@
 ![macOS](https://img.shields.io/badge/platform-macOS-black)
 ![python](https://img.shields.io/badge/python-3.11%2B-black)
 
-**A free-first captcha solver for macOS.** A drop-in replacement for the 2Captcha / RuCaptcha API that tries free solvers first — a local model, then a free vision model, then an invisible browser — and pays human workers only when nothing else worked. Comes with a menu bar app and an MCP server for AI agents.
+**A free-first captcha solver for macOS.** A drop-in replacement for the 2Captcha / RuCaptcha API that tries free solvers first — a local model, then any vision model you choose, then an invisible browser — and pays human workers only when nothing else worked. Comes with a menu bar app and an MCP server for AI agents.
 
 ![I'm Not a Robot: the window and the menu bar panel, demo numbers](docs/images/hero.png)
 
 ## Why
 
-- **Free by default.** With a free Gemini API key most captchas never reach the paid step.
+- **Any model, free if you like.** Bring a key of any vision model — GPT, Claude, Gemini, Qwen, DeepSeek, Grok, OpenRouter, a reseller or a local model via Ollama. The best one for captchas switches on by itself. With a free-tier key or a local model most captchas never reach the paid step.
 - **No code changes.** Any program that speaks the 2Captcha or RuCaptcha API works after changing one address.
 - **A ladder, not a single bet.** Local model → vision model → backup vision model → browser → humans. A step that is unsure, wrong or silent hands the captcha to the next one.
 - **It learns from mistakes.** Report a wrong answer and the step is no longer used on that picture; a step that keeps failing on a kind of captcha is skipped for that kind; complaints about human answers go to the service, which refunds them.
@@ -23,7 +23,7 @@
 ## Quick start
 
 1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications. It is not signed by Apple yet: if macOS blocks the first launch, press **Open Anyway** in System Settings → Privacy & Security.
-2. Get a free Gemini key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into **Keys and models**. The right models switch on by themselves.
+2. Paste a key of any vision model into **Keys and models**: the provider is detected and the best model for captchas switches on by itself. No key yet? Gemini has a free tier at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 3. In your program, change the captcha service address to `http://127.0.0.1:8765` and the API key to the access key from **Connection**.
 
 Optional: add a RuCaptcha or 2Captcha key as the last, paid step.
@@ -33,8 +33,8 @@ Optional: add a RuCaptcha or 2Captcha key as the last, paid step.
 | Step | Solves | Cost | Time |
 |---|---|---|---|
 | 1. Local model (ddddocr, piece matching) | text, sliders | free | milliseconds |
-| 2. Vision model (Gemini Flash by default) | text, picture grids, clicks | free tier | 3–8 s |
-| 3. Backup vision model (Gemini with thinking) | what step 2 was unsure about | free tier | 10–50 s |
+| 2. Vision model (any: GPT, Claude, Gemini, Qwen, DeepSeek, Grok, local) | text, picture grids, clicks | free tier or cents | 3–8 s |
+| 3. Backup vision model (another model or the same with thinking) | what step 2 was unsure about | free tier or cents | 10–50 s |
 | 4. Browser (invisible Chrome) | reCAPTCHA v2/v3, hCaptcha, Turnstile | free | 3 s – 2 min |
 | 5. RuCaptcha / 2Captcha | anything | paid | 10–60 s |
 

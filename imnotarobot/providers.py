@@ -17,6 +17,9 @@ PRESETS: dict[str, dict[str, Any]] = {
     "groq": {"protocol": "openai", "base_url": "https://api.groq.com/openai/v1", "model": ""},
     "gemini": {"protocol": "openai", "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
                "model": "gemini-2.5-flash"},
+    # only deepseek-flash (V4.1 Flash) takes images; off-peak hours are half price
+    "deepseek": {"protocol": "openai", "base_url": "https://api.deepseek.com/v1", "model": "deepseek-flash",
+                 "price_in": 0.30, "price_out": 1.20},
     "anthropic": {"protocol": "anthropic", "base_url": "https://api.anthropic.com/v1", "model": ""},
     "openrouter": {"protocol": "openai", "base_url": "https://openrouter.ai/api/v1", "model": ""},
     "ollama": {"protocol": "openai", "base_url": "http://localhost:11434/v1", "model": "", "keyless": True},

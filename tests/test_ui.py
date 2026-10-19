@@ -240,3 +240,13 @@ def test_panel_reports_its_height_to_the_app(ui):
     c.hooks["panel-size"] = sizes.append
     client.post("/api/ui/panel-size", json={"height": 520})
     assert sizes == [520]
+
+
+def test_other_apps_open_the_window_with_the_access_key(ui):
+    c, client = ui
+    opened = []
+    c.hooks["open-window"] = opened.append
+    assert client.post("/app/open", json={"clientKey": "wrong"}).status_code == 403
+    assert client.post("/app/open", json={"clientKey": c.cfg.client_key, "view": "journal"}).json()["ok"]
+    assert opened == ["journal"]
+    assert client.get("/health").json()["app"] == "imnotarobot"
