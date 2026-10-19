@@ -22,7 +22,7 @@
 
 ## Quick start
 
-1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications.
+1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications. It is not signed by Apple yet: if macOS blocks the first launch, press **Open Anyway** in System Settings → Privacy & Security.
 2. Get a free Gemini key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and paste it into **Keys and models**. The right models switch on by themselves.
 3. In your program, change the captcha service address to `http://127.0.0.1:8765` and the API key to the access key from **Connection**.
 
