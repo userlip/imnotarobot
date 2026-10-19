@@ -151,10 +151,12 @@ EN: dict[str, str] = {
     "DashScope (Китай)": "DashScope (China)",
     # window actions
     "нет доступа": "no access",
+    "нужна ссылка": "a link is needed",
     "запись не найдена": "entry not found",
     "это доступно только в приложении": "this works only in the app",
     "посредник": "reseller", "поставщик": "provider",
     "моделей с картинками: {n}": "vision models: {n}",
+    "включены {models} — можно решать капчи": "{models} switched on, captchas can be solved",
     "список моделей недоступен — впишите модель вручную": "the model list is unavailable, enter a model by hand",
     "Ключ добавлен: {where} {name}, {hint}.": "Key added: {where} {name}, {hint}.",
     "Список моделей {name} обновлён: {n} с картинками.": "Model list of {name} refreshed: {n} with vision.",

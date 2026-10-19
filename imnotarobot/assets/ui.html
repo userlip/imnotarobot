@@ -237,7 +237,7 @@ body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(
       </div>
       <div class="banner" id="firstRun" hidden style="margin-top:24px">
         <b>С чего начать</b><br>
-        <span class="mut">1. «Ключи и модели»: вставьте ключ облачной модели, поставщик определится сам. 2. По желанию добавьте ключ RuCaptcha. 3. «Подключение»: адрес и ключ для своей программы.</span>
+        <span class="mut">1. Возьмите бесплатный ключ Gemini на <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> и вставьте его в «Ключи и модели» — нужные модели включатся сами. 2. По желанию добавьте ключ RuCaptcha. 3. «Подключение»: адрес и ключ для своей программы.</span>
       </div>
       <div class="label">Путь капчи</div>
       <div class="path" id="pathStrip"><span class="spark" id="spark"></span></div>
@@ -378,8 +378,9 @@ const EN = {
   "Сегодня ни разу не понадобились люди.": "Humans were not needed today.",
   "Когда программа пришлёт капчу, она появится здесь.": "When a program sends a captcha, it shows up here.",
   "бесплатно": "free", "потрачено": "spent", "в среднем": "on average", "С чего начать": "Getting started",
-  "1. «Ключи и модели»: вставьте ключ облачной модели, поставщик определится сам. 2. По желанию добавьте ключ RuCaptcha. 3. «Подключение»: адрес и ключ для своей программы.":
-    "1. «Keys and models»: paste a cloud model key, the provider is detected by itself. 2. Optionally add a RuCaptcha key. 3. «Connection»: the address and key for your program.",
+  "1. Возьмите бесплатный ключ Gemini на": "1. Get a free Gemini key at",
+  "и вставьте его в «Ключи и модели» — нужные модели включатся сами. 2. По желанию добавьте ключ RuCaptcha. 3. «Подключение»: адрес и ключ для своей программы.":
+    "and paste it into «Keys and models»: the right models switch on by themselves. 2. Optionally add a RuCaptcha key. 3. «Connection»: the address and key for your program.",
   "Последние": "Recent", "Пока ни одной.": "None yet.",
   "Все ступени выключены — включите их в разделе «Путь капчи».": "All steps are off, turn them on in «Captcha path».",
   "Капча идёт сверху вниз, пока кто-то не решит. Перетащите строку, чтобы поменять порядок.": "A captcha goes top to bottom until a step solves it. Drag a row to change the order.",
@@ -802,6 +803,9 @@ async function startBench(key, button) {
 }
 
 document.addEventListener("click", async e => {
+  // the embedded web view does not open new windows: links go to the default browser
+  const link = e.target.closest("a[target=_blank]");
+  if (link) { e.preventDefault(); if (link.href.startsWith("http")) api("open-url", {url: link.href}); return; }
   const nav = e.target.closest(".nav"); if (nav) return show(nav.dataset.view);
   const row = e.target.closest("[data-entry]"); if (row) return openEntry(row.dataset.entry);
   const open = e.target.closest("[data-open]"); if (open) return api("open-window", {view: open.dataset.open});

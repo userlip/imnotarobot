@@ -186,3 +186,10 @@ def test_old_settings_switch_models_to_one_ask(tmp_path):
     cfg.models[0].votes = 3
     cfg.save(path)
     assert Config.load(path, with_secrets=False).models[0].votes == 3
+
+
+def test_a_gemini_key_switches_its_best_models_on_at_once(ctl, monkeypatch):
+    fake_detect(monkeypatch, "gemini", [("gemini-3-flash-preview", True), ("gemini-2.5-flash", True), ("gemini-2.5-pro", True)])
+    ctl.add_key("AIza-free-key")
+    assert [m.model for m in ctl.cfg.models] == ["gemini-3-flash-preview"]
+    assert ctl.cfg.layers == ["local", "vlm:gemini/gemini-3-flash-preview", "browser", "human"]

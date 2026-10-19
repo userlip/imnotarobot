@@ -133,6 +133,26 @@ async def _try_reseller(client: httpx.AsyncClient, key: str, base: str) -> Detec
     return None
 
 
+def recommended_models(ids: list[str]) -> list[str]:
+    """The Gemini Flash models worth switching on for captchas: the newest fast one, then its thinking variant.
+
+    Measured on our captcha set: Flash solves text and grids fully and most clicks; the thinking variant
+    rescues a few clicks the fast one misses. Lite, image, audio and embedding variants are weaker or unrelated.
+    """
+    def version(mid: str) -> tuple:
+        m = re.match(r"(?:models/)?gemini-([\d.]+)-flash", mid)
+        return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+
+    flash = [m for m in ids if version(m) and not re.search(r"lite|image|tts|audio|embed|live|exp", m)]
+    if not flash:
+        return []
+    newest = max(version(m) for m in flash)
+    same = sorted((m for m in flash if version(m) == newest), key=lambda m: ("preview" in m, len(m)))
+    fast = next((m for m in same if m.endswith("-low")), same[0])
+    thinking = next((m for m in same if m.endswith("-high")), None)
+    return [fast] + ([thinking] if thinking and thinking != fast else [])
+
+
 PROVIDER_TITLES = {"openai": "OpenAI", "dashscope": tr("DashScope (Китай)"), "dashscope-intl": "DashScope", "mistral": "Mistral",
                    "openrouter": "OpenRouter", "xai": "xAI", "groq": "Groq", "anthropic": "Anthropic", "gemini": "Google Gemini"}
 

@@ -16,7 +16,7 @@ import uvicorn
 from . import config as config_mod
 from . import bench, testset
 from .config import HUMAN_CURRENCY, HUMAN_PRESETS, Config, KeyEntry
-from .discovery import detect_sync
+from .discovery import detect_sync, recommended_models
 from .providers import PRESETS, ModelSpec
 from .server import create_app
 from .service import Service
@@ -268,6 +268,9 @@ class Controller:
         config_mod.set_secret(f"key:{name}", secret)
         self.cfg.keys.append(entry)
         self._apply()
+        # a fresh Gemini key works at once: its best captcha models are switched on
+        for model_id in recommended_models([mid for mid, vision, *_ in entry.models if vision]):
+            self.toggle_key_model(name, model_id)
         return entry
 
     def key(self, name: str) -> KeyEntry:

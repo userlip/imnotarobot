@@ -5,6 +5,7 @@ cross-origin request without a CORS preflight, which this server never approves,
 settings or read state through the local port. Secrets are never returned, only their hints.
 """
 
+import subprocess
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -170,6 +171,12 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     async def run_action(action: str, b: dict[str, Any]) -> Any:
         from starlette.concurrency import run_in_threadpool
 
+        if action == "open-url":
+            url = str(b.get("url", ""))
+            if not url.startswith(("https://", "http://")):
+                raise ValueError(tr("нужна ссылка"))
+            subprocess.run(["open", url], check=False)
+            return done("")
         if action == "panel-size":
             hook = c.hooks.get("panel-size")
             if hook:
@@ -186,6 +193,9 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
             n = len(c.key_models(entry.name))
             where = tr("посредник") if entry.provider == "custom" else tr("поставщик")
             hint = tr("моделей с картинками: {n}", n=n) if entry.listable else tr("список моделей недоступен — впишите модель вручную")
+            on = [m.model for m in c.cfg.models if m.key == entry.name]
+            if on:
+                hint = tr("включены {models} — можно решать капчи", models=", ".join(on))
             return done(tr("Ключ добавлен: {where} {name}, {hint}.", where=where, name=entry.name, hint=hint), key=entry.name)
         if action == "refresh-key":
             entry = await run_in_threadpool(c.refresh_key, b["name"])
@@ -286,13 +296,9 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
                 raise ValueError(tr("у этой капчи нет ответа, сообщать нечего"))
             return done(tr("Записал: этот слой на такой картинке больше не используется. Если решали люди — сервису отправлена жалоба."))
         if action == "copy-key":
-            import subprocess
-
             subprocess.run(["pbcopy"], input=c.cfg.client_key.encode(), check=False)
             return done(tr("Ключ доступа скопирован."))
         if action == "copy-address":
-            import subprocess
-
             subprocess.run(["pbcopy"], input=c.address.encode(), check=False)
             return done(tr("Адрес {address} скопирован.", address=c.address))
         if action == "access":

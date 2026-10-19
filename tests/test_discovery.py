@@ -95,3 +95,12 @@ def test_progress_names_every_provider_tried():
     seen: list = []
     asyncio.run(detect("sk-ant-x", transport=fake_world("anthropic", {"data": []}, []), progress=seen.append))
     assert seen == ["проверяю Anthropic"]
+
+
+def test_newest_flash_and_its_thinking_variant_are_recommended():
+    from imnotarobot.discovery import recommended_models
+
+    assert recommended_models(["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-pro"]) == ["gemini-3-flash-preview"]
+    assert recommended_models(["gemini-3.8-flash-low", "gemini-3.8-flash-high", "gemini-3.5-flash", "gemini-3.8-flash-image"]) == \
+        ["gemini-3.8-flash-low", "gemini-3.8-flash-high"]
+    assert recommended_models(["gpt-4o", "qwen-vl-max"]) == []
