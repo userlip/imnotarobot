@@ -1,4 +1,4 @@
-"""MCP server: lets agents solve captchas through the Captcha Stack running on this Mac."""
+"""MCP server: lets agents solve captchas through the «Я не робот» (Ya Ne Robot) app running on this Mac."""
 
 from typing import Literal
 
@@ -12,7 +12,7 @@ from .client import Client, NotRunning, image_b64
 server = MCPServer(
     name="captcha-stack",
     instructions=(
-        "Solves captchas through the user's own Captcha Stack app (local model, then vision models, then RuCaptcha workers). "
+        "Solves captchas through the user's own «Я не робот» app (local model, then vision models, then RuCaptcha workers). "
         "Use solve_image_captcha when you have the captcha picture (a screenshot or a file); use solve_token_captcha when "
         "the page has a reCAPTCHA, hCaptcha or Turnstile widget and you know its site key. If the site rejects an answer, "
         "call report_wrong with the task_id so that layer is not trusted for that picture again."

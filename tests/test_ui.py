@@ -198,3 +198,14 @@ def test_alerts_for_low_balance_and_limits(ui, monkeypatch):
     c.service.chain.state.answered("k", "vlm:x", 0.002)
     ids = [a for a, _ in c.alerts()]
     assert "low-balance" in ids and "cloud-limit" in ids
+
+
+def test_panel_asks_the_app_to_open_the_window_or_quit(ui):
+    c, client = ui
+    assert client.post("/api/ui/open-window", json={"view": "journal"}).status_code == 400
+    calls = []
+    c.hooks["open-window"] = lambda view: calls.append(("open", view))
+    c.hooks["quit"] = lambda _: calls.append(("quit", ""))
+    assert client.post("/api/ui/open-window", json={"view": "journal"}).json()["ok"]
+    client.post("/api/ui/quit", json={})
+    assert calls == [("open", "journal"), ("quit", "")]

@@ -167,6 +167,12 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     async def run_action(action: str, b: dict[str, Any]) -> Any:
         from starlette.concurrency import run_in_threadpool
 
+        if action in ("open-window", "quit"):
+            hook = c.hooks.get(action)
+            if hook is None:
+                raise ValueError("это доступно только в приложении")
+            hook(b.get("view") or "")
+            return done("")
         if action == "add-key":
             entry = await run_in_threadpool(c.add_key, b.get("secret", ""), b.get("baseUrl", ""))
             n = len(c.key_models(entry.name))

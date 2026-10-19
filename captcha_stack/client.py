@@ -1,4 +1,4 @@
-"""Client for a running Captcha Stack: used by the MCP server and by other programs on this Mac."""
+"""Client for the running «Я не робот» app: used by the MCP server and by other programs on this Mac."""
 
 import base64
 import json
@@ -24,7 +24,7 @@ def locate() -> tuple[str, str]:
         address = info["address"]
         os.kill(int(info["pid"]), 0)
     except (OSError, ValueError, KeyError) as e:
-        raise NotRunning("Captcha Stack не запущен — откройте его из «Программ»") from e
+        raise NotRunning("«Я не робот» не запущено — откройте программу из «Программ»") from e
     cfg = json.loads((Path(config.APP_DIR) / "config.json").read_text())
     key = cfg.get("client_key", "") if cfg.get("require_client_key", True) else ""
     return address, key

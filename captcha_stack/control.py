@@ -9,6 +9,7 @@ import threading
 import time
 from urllib.parse import urlparse
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 
@@ -48,6 +49,8 @@ class Controller:
         self.human_status: dict = {}
         self.legacy_human_key = not self.cfg.human_api_key and config_mod.legacy_secret_exists("human")
         self.ui_token = secrets.token_urlsafe(24)
+        # set by the menu bar app: the page asks for native things (open the window, quit) through these
+        self.hooks: dict[str, Any] = {}
 
     # --- server ---------------------------------------------------------------
     def free_port(self) -> int:

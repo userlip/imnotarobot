@@ -16,8 +16,8 @@ datas += collect_data_files("captcha_stack")
 a = Analysis(["app_main.py"], pathex=[".."], datas=datas, binaries=binaries, hiddenimports=hiddenimports,
              excludes=["tkinter", "matplotlib", "pytest"])
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="Captcha Stack", console=False, argv_emulation=False)
-coll = COLLECT(exe, a.binaries, a.datas, name="Captcha Stack")
-app = BUNDLE(coll, name="Captcha Stack.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
-             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.2.0",
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="YaNeRobot", console=False, argv_emulation=False)
+coll = COLLECT(exe, a.binaries, a.datas, name="YaNeRobot")
+app = BUNDLE(coll, name="Я не робот.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
+             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.3.0", "CFBundleDisplayName": "Я не робот", "CFBundleName": "Я не робот",
                          "NSHumanReadableCopyright": "ziganshin"})

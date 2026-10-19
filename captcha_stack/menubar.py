@@ -1,5 +1,4 @@
 import functools
-import subprocess
 import threading
 from pathlib import Path
 
@@ -7,7 +6,9 @@ import rumps
 
 from .control import Controller
 
+APP_NAME = "Я не робот"
 ICON = Path(__file__).with_name("assets") / "menubar.png"
+POPOVER_SIZE = (340, 470)
 
 
 def install_edit_menu() -> None:
@@ -16,11 +17,11 @@ def install_edit_menu() -> None:
 
     app = NSApplication.sharedApplication()
     main = NSMenu.alloc().init()
-    app_menu = NSMenu.alloc().initWithTitle_("Captcha Stack")
-    app_menu.addItemWithTitle_action_keyEquivalent_("О программе Captcha Stack", "orderFrontStandardAboutPanel:", "")
+    app_menu = NSMenu.alloc().initWithTitle_(APP_NAME)
+    app_menu.addItemWithTitle_action_keyEquivalent_(f"О программе «{APP_NAME}»", "orderFrontStandardAboutPanel:", "")
     app_menu.addItem_(NSMenuItem.separatorItem())
     app_menu.addItemWithTitle_action_keyEquivalent_("Скрыть окно", "hide:", "h")
-    app_menu.addItemWithTitle_action_keyEquivalent_("Выйти из Captcha Stack", "terminate:", "q")
+    app_menu.addItemWithTitle_action_keyEquivalent_(f"Выйти из «{APP_NAME}»", "terminate:", "q")
     edit = NSMenu.alloc().initWithTitle_("Правка")
     for title, action, key in [("Отменить", "undo:", "z"), ("Повторить", "redo:", "Z"), ("Вырезать", "cut:", "x"),
                                ("Копировать", "copy:", "c"), ("Вставить", "paste:", "v"), ("Выбрать всё", "selectAll:", "a")]:
@@ -35,17 +36,20 @@ def install_edit_menu() -> None:
     app.setMainMenu_(main)
 
 
-def clipboard_text() -> str:
-    return subprocess.run(["pbpaste"], capture_output=True, text=True, check=False).stdout.strip()
+def _web_view(url: str, frame, transparent: bool = False):
+    from Foundation import NSURL, NSURLRequest
+    from WebKit import WKWebView, WKWebViewConfiguration
 
-
-def copy_to_clipboard(text: str) -> None:
-    subprocess.run(["pbcopy"], input=text.encode(), check=False)
+    web = WKWebView.alloc().initWithFrame_configuration_(frame, WKWebViewConfiguration.alloc().init())
+    if transparent:
+        web.setValue_forKey_(False, "drawsBackground")
+    web.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(url)))
+    return web
 
 
 @functools.cache
-def _window_delegate_class():
-    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory
+def _classes():
+    from AppKit import NSApplication, NSApplicationActivationPolicyAccessory, NSView
     from Foundation import NSObject
 
     class WindowDelegate(NSObject):
@@ -53,11 +57,29 @@ def _window_delegate_class():
             # back to a pure menu bar app: no Dock icon once the window is gone
             NSApplication.sharedApplication().setActivationPolicy_(NSApplicationActivationPolicyAccessory)
 
-    return WindowDelegate
+    class DragStrip(NSView):
+        """The page fills the title bar too; this strip over it keeps the window movable."""
+
+        def mouseDown_(self, event):
+            if event.clickCount() == 2:
+                self.window().performZoom_(None)
+            else:
+                self.window().performWindowDragWithEvent_(event)
+
+    class StatusTarget(NSObject):
+        def initWithCallback_(self, callback):
+            self = self.init()
+            self.callback = callback
+            return self
+
+        def clicked_(self, sender):
+            self.callback()
+
+    return WindowDelegate, DragStrip, StatusTarget
 
 
 class SettingsWindow:
-    """A native window showing the settings page served by the app itself.
+    """The main window: the app's own page in a native window whose title bar the page draws itself.
 
     While it is open the app becomes a regular one (Dock icon, Cmd+Tab), otherwise the window is lost behind other
     apps' windows with no way to bring it back.
@@ -66,124 +88,133 @@ class SettingsWindow:
     def __init__(self, url: str):
         self.url = url
         self.window = None
+        self.web = None
         self.delegate = None
 
-    def show(self) -> None:
+    def show(self, view: str = "") -> None:
         from AppKit import (NSApplication, NSApplicationActivationPolicyRegular, NSBackingStoreBuffered, NSMakeRect,
-                            NSWindow, NSWindowStyleMaskClosable, NSWindowStyleMaskMiniaturizable,
-                            NSWindowStyleMaskResizable, NSWindowStyleMaskTitled)
-        from Foundation import NSURL, NSURLRequest
-        from WebKit import WKWebView, WKWebViewConfiguration
+                            NSWindow, NSWindowStyleMaskClosable, NSWindowStyleMaskFullSizeContentView,
+                            NSWindowStyleMaskMiniaturizable, NSWindowStyleMaskResizable, NSWindowStyleMaskTitled,
+                            NSWindowTitleHidden)
 
         app = NSApplication.sharedApplication()
         if self.window is None:
+            delegate_cls, strip_cls, _ = _classes()
             style = (NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskResizable
-                     | NSWindowStyleMaskMiniaturizable)
+                     | NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskFullSizeContentView)
             w = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
-                NSMakeRect(0, 0, 900, 780), style, NSBackingStoreBuffered, False)
-            w.setTitle_("Captcha Stack")
+                NSMakeRect(0, 0, 980, 660), style, NSBackingStoreBuffered, False)
+            w.setTitle_(APP_NAME)
+            w.setTitleVisibility_(NSWindowTitleHidden)
+            w.setTitlebarAppearsTransparent_(True)
             w.setReleasedWhenClosed_(False)
-            w.setMinSize_((560, 420))
+            w.setMinSize_((780, 540))
             w.center()
-            w.setFrameAutosaveName_("CaptchaStackSettings")
-            web = WKWebView.alloc().initWithFrame_configuration_(w.contentView().bounds(),
-                                                                 WKWebViewConfiguration.alloc().init())
-            web.setAutoresizingMask_(2 | 16)  # width and height follow the window
-            w.setContentView_(web)
-            web.loadRequest_(NSURLRequest.requestWithURL_(NSURL.URLWithString_(self.url)))
-            self.delegate = _window_delegate_class().alloc().init()
+            w.setFrameAutosaveName_("YaNeRobotWindow")
+            content = w.contentView()
+            bounds = content.bounds()
+            self.web = _web_view(self.url + (f"&open={view}" if view else ""), bounds)
+            self.web.setAutoresizingMask_(2 | 16)  # width and height follow the window
+            content.addSubview_(self.web)
+            # leaves the traffic lights clickable: the strip starts to their right
+            strip = strip_cls.alloc().initWithFrame_(NSMakeRect(80, bounds.size.height - 38, bounds.size.width - 80, 38))
+            strip.setAutoresizingMask_(2 | 8)  # follows the width, stays at the top
+            content.addSubview_(strip)
+            self.delegate = delegate_cls.alloc().init()
             w.setDelegate_(self.delegate)
             self.window = w
+        elif view:
+            self.web.evaluateJavaScript_completionHandler_(f"show({view!r})", None)
         app.setActivationPolicy_(NSApplicationActivationPolicyRegular)
         app.activateIgnoringOtherApps_(True)
         self.window.makeKeyAndOrderFront_(None)
 
 
+class MenuPanel:
+    """The panel under the menu bar icon: the same page in its compact view, closed by any click outside."""
+
+    def __init__(self, url: str):
+        self.url = url
+        self.popover = None
+
+    def toggle(self, button) -> None:
+        from AppKit import NSMakeRect, NSMinYEdge, NSPopover, NSViewController
+
+        if self.popover is None:
+            vc = NSViewController.alloc().init()
+            vc.setView_(_web_view(self.url, NSMakeRect(0, 0, *POPOVER_SIZE), transparent=True))
+            p = NSPopover.alloc().init()
+            p.setContentViewController_(vc)
+            p.setContentSize_(POPOVER_SIZE)
+            p.setBehavior_(1)  # transient: closes on a click elsewhere
+            p.setAnimates_(True)
+            self.popover = p
+        if self.popover.isShown():
+            self.popover.performClose_(None)
+            return
+        self.popover.contentViewController().view().evaluateJavaScript_completionHandler_("api('state')", None)
+        self.popover.showRelativeToRect_ofView_preferredEdge_(button.bounds(), button, NSMinYEdge)
+        self.popover.contentViewController().view().window().makeKeyWindow()
+
+    def close(self) -> None:
+        if self.popover is not None and self.popover.isShown():
+            self.popover.performClose_(None)
+
+
 class MenuBarApp(rumps.App):
     def __init__(self, controller: Controller):
         # template image: macOS recolours it for light and dark menu bars like system icons
-        super().__init__("Captcha Stack", icon=str(ICON), template=True, quit_button=None)
+        super().__init__(APP_NAME, icon=str(ICON), template=True, quit_button=None)
         self.c = controller
-        self.window = SettingsWindow(f"{controller.address}/ui?t={controller.ui_token}")
+        page = f"{controller.address}/ui?t={controller.ui_token}"
+        self.window = SettingsWindow(page)
+        self.panel = MenuPanel(page + "&view=pop")
+        controller.hooks["open-window"] = lambda view: self._on_main(self.open_window, view)
+        controller.hooks["quit"] = lambda _: self._on_main(self.quit, None)
         self._started = False
-        self.rebuild()
         rumps.Timer(self.tick, 2).start()
         threading.Thread(target=self._check_human, daemon=True).start()
+
+    @staticmethod
+    def _on_main(fn, arg) -> None:
+        from PyObjCTools import AppHelper
+
+        AppHelper.callAfter(fn, arg)
 
     def _check_human(self) -> None:
         if self.c.cfg.human_api_key:
             self.c.check_human()
 
-    def rebuild(self) -> None:
-        c = self.c
-        status = rumps.MenuItem("⏸ На паузе — продолжить" if c.service.paused else "● Работает — поставить на паузу",
-                                callback=self.toggle_pause)
-        self.today = rumps.MenuItem(c.today_line())
-        items = [status, self.today, None, rumps.MenuItem("Открыть Captcha Stack…", callback=self.open_window, key=","),
-                 None]
-        if not c.cfg.keys:
-            items.append(rumps.MenuItem("Облачных моделей нет — добавить", callback=self.open_window))
-        for entry in c.cfg.keys:
-            enabled = sum(1 for _, on in c.key_models(entry.name) if on)
-            mark = "✓" if enabled else "○"
-            items.append(rumps.MenuItem(f"{mark} {entry.name}: включено моделей {enabled}", callback=self.open_window))
-        items.append(rumps.MenuItem(c.human_line(), callback=self.open_window))
-        items += [rumps.MenuItem("Добавить ключ из буфера обмена", callback=self.add_key_from_clipboard), None,
-                  rumps.MenuItem(f"Скопировать адрес {c.address}", callback=self.copy_address),
-                  rumps.MenuItem("Выход", callback=self.quit, key="q")]
-        self.menu.clear()
-        self.menu = items
+    def _take_over_status_item(self) -> None:
+        """A click on the icon opens the panel instead of rumps' menu."""
+        item = self._nsapp.nsstatusitem
+        item.setMenu_(None)
+        self._target = _classes()[2].alloc().initWithCallback_(lambda: self.panel.toggle(item.button()))
+        item.button().setTarget_(self._target)
+        item.button().setAction_("clicked:")
 
     def tick(self, _=None) -> None:
         if not self._started:
             self._started = True
             install_edit_menu()
+            self._take_over_status_item()
             if not self.c.cfg.keys and not self.c.cfg.human_api_key:
                 self.open_window()
-        self.today.title = self.c.today_line()
         self.notify_new_alerts()
         job = self.c.bench
         self.title = f"{job['done']}/{job['total']}" if job.get("running") else None
-        signature = (self.c.service.paused, self.c.human_line(), tuple(
-            (k.name, sum(1 for _, on in self.c.key_models(k.name) if on)) for k in self.c.cfg.keys))
-        if signature != getattr(self, "_signature", None):
-            self._signature = signature
-            self.rebuild()
 
     def notify_new_alerts(self) -> None:
         current = dict(self.c.alerts())
         seen = getattr(self, "_seen_alerts", set())
         for alert_id, text in current.items():
             if alert_id not in seen:
-                rumps.notification("Captcha Stack", "", text)
+                rumps.notification(APP_NAME, "", text)
         self._seen_alerts = set(current)
 
-    def open_window(self, _=None) -> None:
-        self.window.show()
-
-    def toggle_pause(self, _) -> None:
-        self.c.set_paused(not self.c.service.paused)
-        rumps.notification("Captcha Stack", "", "Решатель на паузе" if self.c.service.paused else "Решатель снова работает")
-        self.rebuild()
-
-    def add_key_from_clipboard(self, _) -> None:
-        secret = clipboard_text()
-        if not secret or " " in secret or len(secret) < 12:
-            rumps.alert("В буфере нет ключа", "Скопируйте ключ API и выберите пункт ещё раз.")
-            return
-        try:
-            entry = self.c.add_key(secret, "")
-        except Exception as e:
-            rumps.alert("Ключ не подошёл", f"{e}\n\nЕсли это ключ посредника, добавьте его в окне и укажите адрес.")
-            return
-        n = len(self.c.key_models(entry.name))
-        rumps.alert("Ключ добавлен", f"{entry.name}: моделей с картинками — {n}. Отметьте нужные в окне Captcha Stack.")
-        self.rebuild()
-        self.open_window()
-
-    def copy_address(self, _) -> None:
-        copy_to_clipboard(self.c.address)
-        rumps.notification("Captcha Stack", "Адрес скопирован", self.c.address)
+    def open_window(self, view: str = "") -> None:
+        self.panel.close()
+        self.window.show(view or "")
 
     def quit(self, _) -> None:
         self.c.stop_server()
@@ -192,6 +223,9 @@ class MenuBarApp(rumps.App):
 
 def main() -> None:
     controller = Controller()
+    if controller.starts_at_login():
+        # the login item points at the executable; after a rename or a move it must follow the app
+        controller.set_start_at_login(True)
     controller.start_server()
     MenuBarApp(controller).run()
 
