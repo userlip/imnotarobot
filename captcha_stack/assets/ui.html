@@ -173,15 +173,23 @@ body.pop #app { display: none; } body.pop #pop { display: flex; }
 #pop .big .orb { width: 70px; height: 70px; --blur: 12px; --inset: 12%; }
 #pop .big .orb b { font-size: 21px; font-weight: 300; letter-spacing: -.03em; }
 #pop .big .txt b { font-size: 14px; display: block; } #pop .big .txt span { color: var(--mut); font-size: 12px; }
-#pop .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-#pop .tile { background: var(--tile); border-radius: 12px; padding: 9px 10px; display: flex; gap: 9px; align-items: center; cursor: default;
-  transition: transform .15s, opacity .2s; min-width: 0; }
-#pop .tile:active { transform: scale(.97); }
-#pop .tile .ic { width: 26px; height: 26px; border-radius: 50%; background: var(--fill); display: grid; place-items: center; font-size: 11px; flex: none; transition: all .3s; }
-#pop .tile.hot .ic { background: var(--ink); color: var(--on-ink); box-shadow: 0 0 14px var(--glow); }
-#pop .tile.off { opacity: .45; }
-#pop .tile div:last-child { min-width: 0; } #pop .tile .n { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
-#pop .tile small { display: block; color: var(--mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pop .label { margin: 4px 6px -2px; }
+#pop .steps { background: var(--tile); border-radius: 14px; padding: 6px 12px; }
+#pop .st { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; position: relative; }
+#pop .st:not(:last-child):after { content: ""; position: absolute; left: 11.5px; top: 31px; bottom: -7px; width: 1px; background: var(--line); }
+#pop .st .ic { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; background: var(--fill); transition: all .3s; }
+#pop .st.hot .ic { background: var(--ink); color: var(--on-ink); box-shadow: 0 0 14px var(--glow); }
+#pop .st.off { opacity: .45; }
+#pop .st > div:nth-child(2) { min-width: 0; }
+#pop .st .n { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pop .st small { display: block; color: var(--mut); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#pop .st .r { text-align: right; font-size: 12px; color: var(--mut); white-space: nowrap; }
+#pop .st.hot .r { color: var(--fg); }
+#pop .hint { color: var(--mut); font-size: 11px; margin: -2px 6px 0; }
+#pop .runlabel { font-size: 12px; color: var(--mut); }
+/* the panel is translucent: tiles stay readable on light, dark and wallpaper-tinted backgrounds */
+body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(0,0,0,.1); }
+@media (prefers-color-scheme: dark) { body.pop { --tile: rgba(255,255,255,.07); --fill: rgba(255,255,255,.1); --line: rgba(255,255,255,.12); } }
 #pop .more { margin-top: auto; padding: 8px 6px 0; border-top: .5px solid var(--line); display: flex; gap: 14px; color: var(--fg2); }
 #pop .more span { cursor: default; } #pop .more span:hover { color: var(--fg); }
 </style>
@@ -326,13 +334,16 @@ body.pop #app { display: none; } body.pop #pop { display: flex; }
 
 <div id="pop">
   <div class="head"><svg class="logo"><use href="#logo"/></svg><b>Я не робот</b>
-    <label class="switch" title="Работает или на паузе"><input type="checkbox" id="popRun"><span></span></label></div>
-  <div class="big" data-open="today">
+    <span class="runlabel" id="popRunLabel">Работает</span>
+    <label class="switch" title="Пауза для всей программы"><input type="checkbox" id="popRun"><span></span></label></div>
+  <div class="big">
     <div class="orb" id="popOrb"><div class="glow"></div><div class="core"></div><div class="in"><b class="num" id="popSolved">0</b></div></div>
     <div class="txt"><b>решено сегодня</b><span id="popSub"></span></div>
   </div>
-  <div class="tiles" id="popTiles"></div>
-  <div class="more"><span data-open="journal">Журнал</span><span data-open="today" class="grow">Открыть окно…</span><span id="popQuit">Выйти</span></div>
+  <div class="label">Как решается капча</div>
+  <div class="steps" id="popSteps"></div>
+  <div class="hint">Порядок и включение ступеней — в окне, раздел «Путь капчи».</div>
+  <div class="more"><span data-open="journal">Журнал</span><span data-open="path" class="grow">Открыть окно…</span><span id="popQuit">Выйти</span></div>
 </div>
 
 <div id="toast"></div>
@@ -359,7 +370,9 @@ let LANG = "ru";
 const EN = {
   "Я не робот": "I'm Not a Robot", "Сегодня": "Today", "Путь капчи": "Captcha path", "Ключи и модели": "Keys and models",
   "Подключение": "Connection", "Журнал": "Journal", "Работает": "Running", "На паузе": "Paused",
-  "Нажмите, чтобы поставить на паузу или продолжить": "Click to pause or resume", "Работает или на паузе": "Running or paused",
+  "Нажмите, чтобы поставить на паузу или продолжить": "Click to pause or resume", "Работает или на паузе": "Running or paused", "Пауза для всей программы": "Pause the whole app", "Как решается капча": "How a captcha gets solved",
+  "Порядок и включение ступеней — в окне, раздел «Путь капчи».": "Order and on/off of the steps are in the window, «Captcha path».",
+  "решила последнюю": "solved the last one", "текст, слайдеры": "text, sliders", "галочки на сайтах": "site checkboxes", "люди, платно": "humans, paid", "картинки, клики": "pictures, clicks", "капчи сейчас не принимаются": "captchas are not accepted now", "выключена": "off",
   "решено сегодня": "solved today", "Всё решается само": "Everything solves itself", "Нет ни одной ступени": "No steps are on",
   "Ждёт капчи": "Waiting for captchas", "Капчи сейчас не принимаются.": "Captchas are not accepted now.",
   "Сегодня ни разу не понадобились люди.": "Humans were not needed today.",
@@ -521,6 +534,10 @@ function layerNote(l) {
   if (l.id === "browser") return "галочки reCAPTCHA, hCaptcha, Turnstile";
   if (l.id === "human") return "люди · платно";
   return "картинки, сетки, клики";
+}
+// the panel is narrow: one or two words per step
+function popNote(l) {
+  return {local: "текст, слайдеры", browser: "галочки на сайтах", human: "люди, платно"}[l.id] || "картинки, клики";
 }
 const solvedBy = id => Math.round(S.today.byLayer?.[id]?.solved || 0);
 
@@ -739,15 +756,16 @@ function renderStats(st) {
 
 function renderPop(s, st, on, hotId) {
   $("popRun").checked = !s.paused;
+  $("popRunLabel").textContent = s.paused ? "На паузе" : "Работает";
   $("popOrb").classList.toggle("paused", s.paused);
   $("popSolved").textContent = st.solved;
-  $("popSub").textContent = s.paused ? "на паузе" : st.solved ? `${st.free} бесплатно · ${st.spentText}` : "ждёт капчи";
-  const tiles = s.layers.map(l => ({id: l.id, n: shortTitle(l), sub: `${solvedBy(l.id)} · ${l.enabled ? (l.ready ? (l.id === "human" ? money(s.human.spentToday, s.human.currency) : l.id === "local" ? "мгновенно" : l.id === "browser" ? "галочки" : "бесплатно") : l.why) : "выключена"}`,
-    on: l.enabled, hot: l.id === hotId}));
+  $("popSub").textContent = s.paused ? "капчи сейчас не принимаются" : st.solved ? `${st.free} бесплатно · ${st.spentText}` : "ждёт капчи";
   let n = 0;
-  $("popTiles").innerHTML = tiles.map(t => `<div class="tile ${t.on ? "" : "off"} ${t.hot ? "hot" : ""}" data-tile="${esc(t.id)}" title="Нажмите, чтобы ${t.on ? "выключить" : "включить"}">
-      <div class="ic">${t.on ? ++n : "–"}</div><div><span class="n">${esc(t.n)}</span><small>${esc(t.sub)}</small></div></div>`).join("") +
-    `<div class="tile" data-copy="1" title="Скопировать адрес и ключ"><div class="ic">⌘</div><div><span class="n">Подключение</span><small>скопировать адрес</small></div></div>`;
+  $("popSteps").innerHTML = s.layers.map(l => {
+    const right = !l.enabled ? "выключена" : !l.ready ? l.why : l.id === hotId ? "решила последнюю" : `${solvedBy(l.id)} сегодня`;
+    return `<div class="st ${l.enabled ? "" : "off"} ${l.id === hotId ? "hot" : ""}"><div class="ic">${l.enabled ? ++n : "–"}</div>
+      <div><span class="n">${esc(shortTitle(l))}</span><small>${esc(popNote(l))}</small></div><span class="r">${esc(right)}</span></div>`;
+  }).join("");
 }
 
 async function openEntry(id) {
@@ -782,8 +800,6 @@ document.addEventListener("click", async e => {
   const nav = e.target.closest(".nav"); if (nav) return show(nav.dataset.view);
   const row = e.target.closest("[data-entry]"); if (row) return openEntry(row.dataset.entry);
   const open = e.target.closest("[data-open]"); if (open) return api("open-window", {view: open.dataset.open});
-  const tile = e.target.closest("[data-tile]"); if (tile) return api("toggle-layer", {id: tile.dataset.tile});
-  if (e.target.closest("[data-copy]")) return api("copy-address", {});
   if (e.target.id === "popQuit") { if (await ask("Выйти? Капчи перестанут решаться, пока приложение снова не запустят.", "Выйти")) api("quit", {}); return; }
   if (e.target.closest("#pauseBtn")) return api("pause", {paused: !S.paused});
   if (e.target.id === "entryBox") { $("entryBox").hidden = true; return; }
