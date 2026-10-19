@@ -152,6 +152,8 @@ EN: dict[str, str] = {
     # window actions
     "нет доступа": "no access",
     "нужна ссылка": "a link is needed",
+    "сначала сравните модели": "compare the models first",
+    "Открыл заготовку на GitHub: проверьте и нажмите «Submit new issue».": "A draft is open on GitHub: check it and press «Submit new issue».",
     "запись не найдена": "entry not found",
     "это доступно только в приложении": "this works only in the app",
     "посредник": "reseller", "поставщик": "provider",

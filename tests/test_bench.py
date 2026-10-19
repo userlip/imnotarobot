@@ -112,3 +112,33 @@ def test_download_builds_a_usable_set(tmp_path):
     n = testset.download("venusbench", tmp_path / "venusbench", progress=lambda d, t: seen.append((d, t)),
                          transport=httpx.MockTransport(handler))
     assert n == 1 and seen[-1] == (2, 2) and testset.count_cases(tmp_path / "venusbench") == 1
+
+
+def test_shared_results_hold_scores_only_and_round_trip():
+    from urllib.parse import parse_qs, urlparse
+
+    from imnotarobot import share
+
+    bench = {"rows": [{"name": "reseller.example/gpt-5", "model": "gpt-5", "accuracy": 0.8, "seconds": 6.0, "errors": 0,
+                       "by_set": {"grid": {"ok": 4, "n": 5}}},
+                      {"name": "gemini/gemini-3-flash", "model": "gemini-3-flash", "accuracy": 0.95, "seconds": 4.0,
+                       "by_set": {"grid": {"ok": 5, "n": 5}}}]}
+    rep = share.report(bench, {"gemini": "gemini"})
+    assert [r["provider"] for r in rep["rows"]] == ["custom", "gemini"]
+    url = share.issue_url(rep)
+    q = parse_qs(urlparse(url).query)
+    assert q["labels"] == ["results"] and "gemini-3-flash" in q["title"][0]
+    assert "reseller.example" not in url
+    back = share.parse(q["body"][0])
+    assert back["rows"] == rep["rows"]
+    rows = share.aggregate([back, back])
+    assert rows[0]["model"] == "gemini-3-flash" and rows[0]["reports"] == 2
+    assert "| gemini-3-flash | 95% | 4.0 s | 2 | gemini |" in share.markdown(rows)
+
+
+def test_long_results_are_cut_to_fit_a_link():
+    from imnotarobot import share
+
+    many = {"rows": [{"name": f"k/m{i}", "model": f"model-{i}-" + "x" * 80, "accuracy": i / 100, "seconds": 1.0,
+                      "by_set": {f"set{j}": {"ok": 1, "n": 2} for j in range(6)}} for i in range(60)]}
+    assert len(share.issue_url(share.report(many, {}))) <= share.MAX_URL

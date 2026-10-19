@@ -419,7 +419,8 @@ const EN = {
   "День": "Day", "Решено": "Solved", "Модели": "Models", "Данных пока нет.": "No data yet.", "Вид капчи": "Captcha kind", "Ступень": "Step",
   "Ответов": "Answers", "Неверных": "Wrong", "Появится, когда начнут приходить капчи.": "Appears when captchas start coming.",
   "Модель": "Model", "Точность": "Accuracy", "Время": "Time", "За 1000": "Per 1000", "Сделать первой": "Make it first",
-  "Сравнить включённые модели": "Compare enabled models", "Сначала добавьте ключ облачной модели.": "Add a cloud model key first.",
+  "Сравнить включённые модели": "Compare enabled models", "Поделиться результатами": "Share results",
+  "Откроет на GitHub заготовку с названиями моделей и точностью — без ключей и картинок": "Opens a GitHub draft with model names and accuracy — no keys or pictures", "Сначала добавьте ключ облачной модели.": "Add a cloud model key first.",
   "не удалось": "failed", "Останавливаю": "Stopping", "Идёт сравнение": "Comparing", "Остановить": "Stop", "Удалить": "Remove", "Источник": "Source",
   "на паузе": "paused", "ждёт капчи": "waiting for captchas", "мгновенно": "instant", "галочки": "checkboxes", "выключена": "off",
   "Подключение": "Connection", "скопировать адрес": "copy the address", "Скопировать адрес и ключ": "Copy the address and key",
@@ -731,7 +732,8 @@ function renderBench(b) {
       ${sets.map(x => r.by_set[x] ? `<td>${r.by_set[x].ok}/${r.by_set[x].n}</td>` : "<td>—</td>").join("")}
       <td>${r.seconds.toFixed(1)} с</td><td>${r.usd_per_1000 == null ? "—" : money(r.usd_per_1000, "$")}</td>
       <td>${i === 0 && r.accuracy > 0 && !r.name.includes(" · ") ? `<button class="small primary" data-best="${esc(r.name)}">Сделать первой</button>` : ""}</td></tr>`).join("") +
-    `</table><div class="row" style="margin-top:10px"><span class="mut grow">Сравнение от ${ago(b.finished || b.started)}</span>${again}</div>`;
+    `</table><div class="row" style="margin-top:10px"><span class="mut grow">Сравнение от ${ago(b.finished || b.started)}</span>
+      <button id="shareResults" title="Откроет на GitHub заготовку с названиями моделей и точностью — без ключей и картинок">Поделиться результатами</button>${again}</div>`;
 }
 
 function renderJournal(rows) {
@@ -825,6 +827,7 @@ document.addEventListener("click", async e => {
   if (t.id === "removeHuman") { if (await ask("Удалить ключ людей? Последняя ступень выключится.", "Удалить")) api("human-remove-key", {}, t); return; }
   if (t.id === "benchEnabled") return startBench(null, t);
   if (t.id === "benchStop") return api("bench-stop", {}, t);
+  if (t.id === "shareResults") return api("share-results", {}, t);
   if (d.refresh) return api("refresh-key", {name: d.refresh}, t);
   if (d.remove) { if (await ask(`Удалить ключ ${d.remove} и его модели?`, "Удалить")) return api("remove-key", {name: d.remove}, t); return; }
   if (d.bench) return startBench(d.bench, t);

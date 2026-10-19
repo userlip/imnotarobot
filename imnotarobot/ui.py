@@ -183,6 +183,14 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     async def run_action(action: str, b: dict[str, Any]) -> Any:
         from starlette.concurrency import run_in_threadpool
 
+        if action == "share-results":
+            from . import share
+
+            if not c.bench.get("rows"):
+                raise ValueError(tr("сначала сравните модели"))
+            providers = {k.name: k.provider for k in c.cfg.keys}
+            subprocess.run(["open", share.issue_url(share.report(c.bench, providers))], check=False)
+            return done(tr("Открыл заготовку на GitHub: проверьте и нажмите «Submit new issue»."))
         if action == "open-url":
             url = str(b.get("url", ""))
             if not url.startswith(("https://", "http://")):

@@ -50,6 +50,10 @@ On our test set and the official demo pages, October 2026. Small samples; rerun 
 | reCAPTCHA v3, Turnstile test key (browser) | 5 of 5, 3–4 s |
 | hCaptcha demo (browser) | 5 of 5, median 82 s |
 
+## Which model is best
+
+People share their model comparisons from the app (**Share results**, nothing is sent without you pressing Submit on GitHub); the table is in [community results](docs/community-results.md).
+
 ## Compared with
 
 | | I'm Not a Robot | 2Captcha / CapSolver | OhMyCaptcha | hcaptcha-challenger |
