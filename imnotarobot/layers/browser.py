@@ -144,6 +144,7 @@ class BrowserLayer(Layer):
             "s => [...document.querySelectorAll(s)].map(e => e.value).find(v => v) || ''", TOKEN_FIELD[kind])
 
     async def _run(self, page, kind: str, task: dict[str, Any]) -> str:
+        self._reloads = 0
         if kind == "recaptcha3":
             # the patched browser evaluates in an isolated world by default, where the page's grecaptcha is not visible
             for _ in range(60):
@@ -199,24 +200,41 @@ class BrowserLayer(Layer):
         table = bf.locator("#rc-imageselect-target table")
         if not await table.count():
             return False
+        size = 4 if "44" in (await table.first.get_attribute("class") or "") else 3
+        # 4x4 "squares with X" tasks are the ones the models miss most; a fresh task is usually a 3x3
+        if size == 4 and self._reloads < 2:
+            self._reloads += 1
+            await bf.locator("#recaptcha-reload-button").click()
+            await asyncio.sleep(1.5)
+            return False
         desc = bf.locator(".rc-imageselect-desc-wrapper").first
         comment = " ".join((await desc.inner_text()).split())
-        size = 4 if "44" in (await table.first.get_attribute("class") or "") else 3
         dynamic = "none left" in comment.lower()
+        cells = bf.locator("#rc-imageselect-target td")
         for _ in range(6):
+            started = time.monotonic()
             tiles = await self._ask(await table.first.screenshot(), comment, size, size)
-            cells = bf.locator("#rc-imageselect-target td")
+            log.info("recaptcha ask: %.1f s -> %s", time.monotonic() - started, tiles)
             for t in tiles:
                 await cells.nth(t - 1).click()
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.15)
             if not dynamic or not tiles:
                 break
-            # replaced tiles fade in over a few seconds
-            await asyncio.sleep(4.5)
+            await self._wait_for_new_tiles(bf)
         log.info("recaptcha round: %s, %dx%d", comment, size, size)
         await bf.locator("#recaptcha-verify-button").click()
         await asyncio.sleep(2)
         return True
+
+    @staticmethod
+    async def _wait_for_new_tiles(bf) -> None:
+        """Clicked tiles of a dynamic task are swapped for new pictures; waits until every swap has finished."""
+        await asyncio.sleep(0.6)
+        for _ in range(30):
+            if not await bf.locator("td.rc-imageselect-dynamic-selected, .rc-image-tile-wrapper img[style*='opacity: 0']").count():
+                break
+            await asyncio.sleep(0.25)
+        await asyncio.sleep(0.4)
 
     async def _hcaptcha_round(self, page) -> bool:
         frame_el = page.locator('iframe[src*="frame=challenge"]')
