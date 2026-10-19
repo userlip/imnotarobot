@@ -153,6 +153,8 @@ EN: dict[str, str] = {
     "нет доступа": "no access",
     "нужна ссылка": "a link is needed",
     "сначала сравните модели": "compare the models first",
+    "Скачиваю модель клеток — ход виден в разделе «Путь капчи».": "Downloading the tile model, the progress is in «Captcha path».",
+    "Модель клеток удалена: сетки reCAPTCHA снова решает облачная модель.": "The tile model is removed: the cloud model solves reCAPTCHA grids again.",
     "Открыл заготовку на GitHub: проверьте и нажмите «Submit new issue».": "A draft is open on GitHub: check it and press «Submit new issue».",
     "запись не найдена": "entry not found",
     "это доступно только в приложении": "this works only in the app",

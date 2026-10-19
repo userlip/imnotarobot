@@ -250,6 +250,8 @@ body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(
       <div class="sub">Капча идёт сверху вниз, пока кто-то не решит. Перетащите строку, чтобы поменять порядок.</div>
       <div class="layers" id="layers"></div>
       <div class="now" id="nowSolving"></div>
+      <div class="label">Быстрая reCAPTCHA</div>
+      <div class="panel" id="tilesPanel"></div>
       <div class="label">Лимиты на день</div>
       <div class="panel">
         <div class="sub">0 — без лимита. Когда лимит исчерпан, ступень пропускается до конца дня и приходит уведомление.</div>
@@ -419,6 +421,10 @@ const EN = {
   "День": "Day", "Решено": "Solved", "Модели": "Models", "Данных пока нет.": "No data yet.", "Вид капчи": "Captcha kind", "Ступень": "Step",
   "Ответов": "Answers", "Неверных": "Wrong", "Появится, когда начнут приходить капчи.": "Appears when captchas start coming.",
   "Модель": "Model", "Точность": "Accuracy", "Время": "Time", "За 1000": "Per 1000", "Сделать первой": "Make it first",
+  "Быстрая reCAPTCHA": "Fast reCAPTCHA", "Скачиваю модель клеток": "Downloading the tile model", "модель клеток установлена": "tile model installed",
+  "Сетки reCAPTCHA 3×3 решаются на этом Маке за доли секунды; в сомнительных случаях — облачной моделью.": "reCAPTCHA 3×3 grids are solved on this Mac in a fraction of a second; unsure ones go to the cloud model.",
+  "Своя модель для клеток reCAPTCHA решает сетки за доли секунды вместо запросов к облачной модели. Лицензия MIT, файл с Hugging Face.": "A local model for reCAPTCHA tiles solves grids in a fraction of a second instead of asking the cloud model. MIT license, file from Hugging Face.",
+  "Удалить модель клеток? Сетки reCAPTCHA снова будет решать облачная модель.": "Remove the tile model? The cloud model will solve reCAPTCHA grids again.",
   "Сравнить включённые модели": "Compare enabled models", "Поделиться результатами": "Share results",
   "Откроет на GitHub заготовку с названиями моделей и точностью — без ключей и картинок": "Opens a GitHub draft with model names and accuracy — no keys or pictures", "Сначала добавьте ключ облачной модели.": "Add a cloud model key first.",
   "не удалось": "failed", "Останавливаю": "Stopping", "Идёт сравнение": "Comparing", "Остановить": "Stop", "Удалить": "Remove", "Источник": "Source",
@@ -445,7 +451,7 @@ const RULES = [
   [/^(.+) · ([\d.,]+) с$/, (m, a, b) => `${t(a)} · ${b} s`],
   [/^Сегодня: модели (.+), люди (.+)\.(.*)$/, (m, a, b, c) => `Today: models ${a.replace(" из ", " of ")}, humans ${b.replace(" из ", " of ")}.${c ? t(c) : ""}`],
   [/^ У (\d+) моделей цена неизвестна — их траты в лимит не попадают\.$/, " $1 models have no known price, their spend is not counted in the limit."],
-  [/^(\d+) из (.+) файлов$/, "$1 of $2 files"], [/^скачан · (\d+) капч$/, "downloaded · $1 captchas"], [/^Скачать ~(\S+) МБ$/, "Download ~$1 MB"],
+  [/^(\d+) из (.+) файлов$/, "$1 of $2 files"], [/^скачан · (\d+) капч$/, "downloaded · $1 captchas"], [/^Скачать ~(\S+) МБ$/, "Download ~$1 MB"], [/^Скачать (\d+) МБ$/, "Download $1 MB"], [/^(\d+) из (\d+) МБ$/, "$1 of $2 MB"],
   [/^(\d+) из (\d+)$/, "$1 of $2"], [/^ошибок: (\d+)$/, "errors: $1"], [/^Сравнение от (.+)$/, (m, a) => `Comparison from ${t(a)}`],
   [/^(\d+) мин назад$/, "$1 min ago"], [/^(.+) бесплатно · (.+)$/, "$1 free · $2"], [/^(\d+) · (.+)$/, (m, a, b) => `${a} · ${t(b)}`],
   [/^Нажмите, чтобы (выключить|включить)$/, (m, a) => a === "выключить" ? "Click to turn off" : "Click to turn on"],
@@ -593,6 +599,7 @@ function render(s) {
   renderKeys(s);
   renderHuman(s);
   renderLimits(s);
+  renderTiles(s.tiles);
   renderConnect(s);
   $("benchCases").textContent = s.benchCases;
   renderDatasets(s.datasets);
@@ -678,6 +685,17 @@ function renderHuman(s) {
     `<span class="tag">ключ сохранён</span> <span class="mono">${esc(h.hint)}</span>`;
   $("topup").href = h.topup || "#";
   $("removeHuman").disabled = $("checkHuman").disabled = !h.hasKey;
+}
+
+function renderTiles(t) {
+  const j = t.job || {};
+  const body = j.running ? `<div class="row"><span class="grow">Скачиваю модель клеток</span><span class="mut num">${Math.round((j.done || 0) / 1048576)} из ${j.total ? Math.round(j.total / 1048576) : t.sizeMb} МБ</span></div>
+      <div class="bar"><i style="width:${j.total ? Math.round(j.done / j.total * 100) : 2}%"></i></div>` :
+    t.installed ? `<div class="row"><span class="tag good">модель клеток установлена</span><span class="mut grow">Сетки reCAPTCHA 3×3 решаются на этом Маке за доли секунды; в сомнительных случаях — облачной моделью.</span>
+      <button class="small danger" id="tilesRemove">Удалить</button></div>` :
+    `<div class="row"><span class="grow">Своя модель для клеток reCAPTCHA решает сетки за доли секунды вместо запросов к облачной модели. Лицензия MIT, файл с Hugging Face.</span>
+      <button class="primary" id="tilesGet">Скачать ${t.sizeMb} МБ</button></div>`;
+  $("tilesPanel").innerHTML = body + (j.error ? `<div class="mut" style="margin-top:8px"><span class="tag bad">ошибка</span> ${esc(j.error)}</div>` : "");
 }
 
 function renderLimits(s) {
@@ -828,6 +846,8 @@ document.addEventListener("click", async e => {
   if (t.id === "benchEnabled") return startBench(null, t);
   if (t.id === "benchStop") return api("bench-stop", {}, t);
   if (t.id === "shareResults") return api("share-results", {}, t);
+  if (t.id === "tilesGet") return api("tiles-download", {}, t);
+  if (t.id === "tilesRemove") { if (await ask("Удалить модель клеток? Сетки reCAPTCHA снова будет решать облачная модель.", "Удалить")) api("tiles-remove", {}, t); return; }
   if (d.refresh) return api("refresh-key", {name: d.refresh}, t);
   if (d.remove) { if (await ask(`Удалить ключ ${d.remove} и его модели?`, "Удалить")) return api("remove-key", {name: d.remove}, t); return; }
   if (d.bench) return startBench(d.bench, t);

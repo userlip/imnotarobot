@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from .config import HUMAN_CURRENCY, HUMAN_TOPUP
 from .control import HUMAN_TITLES, LAYER_TITLES, money
+from .layers import tiles
 from .layers.browser import BrowserLayer
 from .layers.vlm import LAST_ERRORS
 from .providers import NO_EFFORT
@@ -112,6 +113,7 @@ def state(c: "Controller") -> dict[str, Any]:
         "modelErrors": {name[4:]: {"at": at, "error": msg} for name, (at, msg) in LAST_ERRORS.items()},
         "modelTests": c.model_tests,
         "benchCases": len(c.bench_cases()),
+        "tiles": {"installed": tiles.available(), "sizeMb": tiles.SIZE_MB, "job": c.tiles_job},
         "now": time.time(),
         "lang": i18n.LANG,
     }
@@ -353,6 +355,13 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
         if action == "bench-stop":
             c.stop_bench()
             return done(tr("Останавливаю: дорешаю начатые капчи и покажу то, что успели."))
+        if action == "tiles-download":
+            c.download_tiles()
+            return done(tr("Скачиваю модель клеток — ход виден в разделе «Путь капчи»."))
+        if action == "tiles-remove":
+            tiles.remove()
+            c.tiles_job = {}
+            return done(tr("Модель клеток удалена: сетки reCAPTCHA снова решает облачная модель."))
         if action == "dataset-download":
             c.download_dataset(b["name"])
             return done(tr("Скачиваю набор — прогресс виден в разделе сравнения."))

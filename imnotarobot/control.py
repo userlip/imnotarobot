@@ -46,6 +46,7 @@ class Controller:
         self.detecting = ""
         self.model_tests: dict[str, dict] = {}
         self.dataset_jobs: dict[str, dict] = {}
+        self.tiles_job: dict = {}
         self.port: int | None = None
         self.port_note = ""
         self.human_status: dict = {}
@@ -508,6 +509,22 @@ class Controller:
             job["running"] = False
 
         threading.Thread(target=work, daemon=True, name=f"download-{name}").start()
+
+    def download_tiles(self) -> None:
+        from .layers import tiles
+
+        if self.tiles_job.get("running"):
+            raise ValueError(tr("уже скачивается"))
+        job = self.tiles_job = {"running": True, "done": 0, "total": 0}
+
+        def work():
+            try:
+                tiles.download(progress=lambda d, t: job.update(done=d, total=t))
+            except Exception as e:
+                job["error"] = str(e)[:300]
+            job["running"] = False
+
+        threading.Thread(target=work, daemon=True, name="download-tiles").start()
 
     def remove_dataset(self, name: str) -> None:
         import shutil

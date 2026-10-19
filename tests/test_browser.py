@@ -119,3 +119,33 @@ def test_hands_stop_when_the_model_declines(monkeypatch):
 
     ok = asyncio.run(hands.Hands(ModelSpec(name="m", provider="gemini", api_key="k")).solve(shoot, act, passed, instruction))
     assert ok is False and done == [(110.0, 70.0)]
+
+
+def test_tile_model_download_reports_progress_and_rejects_a_bad_file(monkeypatch, tmp_path):
+    import httpx
+
+    from imnotarobot import config
+    from imnotarobot.layers import tiles
+
+    monkeypatch.setattr(config, "APP_DIR", tmp_path)
+    payload = b"x" * (3 << 20)
+    real_stream = httpx.stream
+
+    def fake_stream(method, url, **kw):
+        transport = httpx.MockTransport(lambda r: httpx.Response(200, content=payload, headers={"content-length": str(len(payload))}))
+        return httpx.Client(transport=transport).stream(method, url)
+
+    monkeypatch.setattr(httpx, "stream", fake_stream)
+    seen = []
+    tiles.download(progress=lambda d, t: seen.append((d, t)), verify=lambda p: None)
+    assert tiles.available() and seen[-1] == (len(payload), len(payload))
+    tiles.remove()
+    assert not tiles.available()
+
+    def bad(_):
+        raise ValueError("not a model")
+
+    with pytest.raises(ValueError):
+        tiles.download(verify=bad)
+    assert not tiles.available() and not list((tmp_path / "models").glob("*.part"))
+    monkeypatch.setattr(httpx, "stream", real_stream)

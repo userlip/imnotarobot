@@ -5,8 +5,8 @@ The model is the MIT-licensed reCAPTCHA classifier trained on 57 thousand tiles
 It is not shipped with the app; `download()` fetches it on the user's request.
 """
 
-import hashlib
 import io
+import re
 from pathlib import Path
 
 import numpy as np
@@ -22,6 +22,7 @@ SYNONYMS = {"bicycle": ["bicycle"], "bridge": ["bridge"], "bus": ["bus"], "car":
             "crosswalk": ["crosswalk"], "hydrant": ["hydrant"], "motorcycle": ["motorcycle"],
             "mountain": ["mountain", "hill"], "palm": ["palm"], "stair": ["stair"], "tractor": ["tractor"],
             "traffic light": ["traffic light"]}
+SIZE_MB = 114
 SIZE = 640
 SURE_YES, SURE_NO = 0.7, 0.15
 
@@ -79,21 +80,45 @@ class TileClassifier:
         return [i + 1 for i in np.flatnonzero(p >= SURE_YES)]
 
 
-def download(sha256: str | None = None) -> Path:
+def check(path: Path) -> None:
+    """A file that onnxruntime cannot open, or that does not answer over our 14 classes, is not the model."""
+    import onnxruntime
+
+    session = onnxruntime.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+    shape = session.get_outputs()[0].shape
+    if shape[-1] != len(CLASSES):
+        raise ValueError(f"unexpected model output {shape}")
+    # YOLO exports keep their class list in the file, e.g. "{0: 'Bicycle', 1: 'Bridge', ...}"
+    names = session.get_modelmeta().custom_metadata_map.get("names", "")
+    found = [n.lower() for n in re.findall(r"'([^']+)'", names)]
+    if found and found != CLASSES:
+        raise ValueError(f"the model's classes are in another order: {found}")
+
+
+def download(progress=None, url: str = URL, verify=check) -> Path:
+    """Fetches the model on the user's request; `progress(done_bytes, total_bytes)` follows the download."""
     import httpx
 
     path = model_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".part")
-    digest = hashlib.sha256()
-    with httpx.stream("GET", URL, follow_redirects=True, timeout=120) as r:
-        r.raise_for_status()
-        with open(tmp, "wb") as f:
-            for chunk in r.iter_bytes(1 << 20):
-                f.write(chunk)
-                digest.update(chunk)
-    if sha256 and digest.hexdigest() != sha256:
-        tmp.unlink()
-        raise ValueError("the downloaded model does not match its checksum")
+    try:
+        with httpx.stream("GET", url, follow_redirects=True, timeout=120) as r:
+            r.raise_for_status()
+            total, done = int(r.headers.get("content-length") or 0), 0
+            with open(tmp, "wb") as f:
+                for chunk in r.iter_bytes(1 << 20):
+                    f.write(chunk)
+                    done += len(chunk)
+                    if progress:
+                        progress(done, total)
+        verify(tmp)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
     tmp.replace(path)
     return path
+
+
+def remove() -> None:
+    model_path().unlink(missing_ok=True)
