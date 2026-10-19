@@ -6,3 +6,5 @@ dist/
 build/
 *.egg-info/
 build.log
+OPEN.md
+docs/audit.md

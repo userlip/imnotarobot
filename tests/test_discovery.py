@@ -109,3 +109,19 @@ def test_newest_flash_and_its_thinking_variant_are_recommended():
     assert recommended_models(["claude-opus-5", "claude-haiku-5-5", "claude-3-5-haiku"]) == ["claude-haiku-5-5"]
     assert recommended_models(["openai/gpt-5-mini", "google/gemini-3-flash-preview"]) == ["google/gemini-3-flash-preview"]
     assert recommended_models(["llava", "whisper-1"]) == []
+
+
+def test_no_reseller_is_tried_unless_the_user_set_one_up(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    import importlib
+
+    from imnotarobot import discovery
+
+    real = importlib.reload(discovery).local_reseller_urls  # conftest replaces it for every other test
+    monkeypatch.setattr(discovery, "local_reseller_urls", real)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    assert discovery.local_reseller_urls() == []
+    (tmp_path / ".codex").mkdir()
+    (tmp_path / ".codex" / "config.toml").write_text('[model_providers.mine]\nbase_url = "https://mine.example/v1"\n')
+    assert discovery.local_reseller_urls() == ["https://mine.example/v1"]

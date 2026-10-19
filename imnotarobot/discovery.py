@@ -106,12 +106,12 @@ async def _try(client: httpx.AsyncClient, provider: str, key: str, base_url: str
     return None
 
 
-KNOWN_RESELLERS = ["https://reseller.example/v1"]
-
-
 def local_reseller_urls() -> list[str]:
-    """Known OpenAI-compatible resellers plus any the user set up for Codex."""
-    urls = list(KNOWN_RESELLERS)
+    """OpenAI-compatible resellers this user already set up for Codex.
+
+    Only the user's own configuration counts: a key is never sent to a reseller the user did not choose.
+    """
+    urls: list[str] = []
     path = Path.home() / ".codex" / "config.toml"
     try:
         providers = tomllib.loads(path.read_text()).get("model_providers", {})

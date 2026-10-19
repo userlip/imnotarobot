@@ -125,6 +125,10 @@ The app speaks the system language: English or Russian.
 
 Use it on your own sites, for testing, and for automation you are allowed to run. Respect the terms of the sites you visit. The project does not target any particular site.
 
+## Roadmap
+
+What comes next and how to help: [docs/roadmap.md](docs/roadmap.md).
+
 ## License
 
 [MIT](LICENSE)
