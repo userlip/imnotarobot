@@ -24,7 +24,7 @@ def test_adding_a_model_stores_the_key_in_keychain_not_in_the_file(ctl, tmp_path
     saved = (tmp_path / "config.json").read_text()
     assert "AIza-secret" not in saved and '"gemini-2.5-flash"' in saved
     assert ctl.secrets["model:gem"] == "AIza-secret"
-    assert [layer.name for layer in ctl.service.chain.layers] == ["local", "vlm:gem", "human"]
+    assert [layer.name for layer in ctl.service.chain.layers] == ["local", "vlm:gem", "browser", "human"]
     assert ctl.service.chain.layer("vlm:gem").available()
 
 
@@ -45,10 +45,10 @@ def test_bad_input_is_refused(ctl):
 def test_toggling_layers_keeps_order_and_survives_reload(ctl):
     ctl.add_model("q", "dashscope", "qwen3-vl-plus", "k")
     ctl.toggle_layer("local")
-    assert ctl.cfg.layers == ["vlm:q", "human"]
+    assert ctl.cfg.layers == ["vlm:q", "browser", "human"]
     ctl.toggle_layer("local")
-    assert ctl.cfg.layers == ["local", "vlm:q", "human"]
-    assert Config.load().layers == ["local", "vlm:q", "human"]
+    assert ctl.cfg.layers == ["local", "vlm:q", "browser", "human"]
+    assert Config.load().layers == ["local", "vlm:q", "browser", "human"]
 
 
 def test_human_settings(ctl):
@@ -100,9 +100,9 @@ def test_toggle_model_from_key_adds_a_ready_layer_with_prices(ctl, monkeypatch):
     ctl.toggle_key_model("openrouter", "google/gemini-x")
     spec = ctl.cfg.models[0]
     assert (spec.name, spec.key, spec.price_in, spec.ready()) == ("openrouter/google/gemini-x", "openrouter", 0.3, True)
-    assert ctl.cfg.layers == ["local", "vlm:openrouter/google/gemini-x", "human"]
+    assert ctl.cfg.layers == ["local", "vlm:openrouter/google/gemini-x", "browser", "human"]
     ctl.toggle_key_model("openrouter", "google/gemini-x")
-    assert ctl.cfg.models == [] and ctl.cfg.layers == ["local", "human"]
+    assert ctl.cfg.models == [] and ctl.cfg.layers == ["local", "browser", "human"]
 
 
 def test_second_key_of_same_provider_gets_its_own_name_and_removal_cleans_up(ctl, monkeypatch):
@@ -113,7 +113,7 @@ def test_second_key_of_same_provider_gets_its_own_name_and_removal_cleans_up(ctl
     ctl.toggle_key_model("openai-2", "gpt-5")
     ctl.remove_key("openai-2")
     assert [k.name for k in ctl.cfg.keys] == ["openai"] and ctl.cfg.models == []
-    assert "key:openai-2" not in ctl.secrets and ctl.cfg.layers == ["local", "human"]
+    assert "key:openai-2" not in ctl.secrets and ctl.cfg.layers == ["local", "browser", "human"]
 
 
 def test_bench_specs_cover_every_vision_model_of_a_key(ctl, monkeypatch):
@@ -130,7 +130,7 @@ def test_use_best_enables_and_moves_it_first(ctl, monkeypatch):
     ctl.add_key("sk-xyz")
     ctl.toggle_key_model("openai", "gpt-5")
     ctl.use_best("openai/gpt-4o")
-    assert ctl.cfg.layers == ["local", "vlm:openai/gpt-4o", "vlm:openai/gpt-5", "human"]
+    assert ctl.cfg.layers == ["local", "vlm:openai/gpt-4o", "vlm:openai/gpt-5", "browser", "human"]
 
 
 def test_reseller_key_is_named_after_its_host(ctl, monkeypatch):
@@ -182,7 +182,7 @@ def test_old_settings_switch_models_to_one_ask(tmp_path):
     path.write_text(json.dumps({"models": [{"name": "g", "provider": "gemini", "votes": 3},
                                            {"name": "q", "provider": "dashscope", "votes": 2}]}))
     cfg = Config.load(path, with_secrets=False)
-    assert [m.votes for m in cfg.models] == [1, 2] and cfg.schema == 2
+    assert [m.votes for m in cfg.models] == [1, 2] and cfg.schema == 3 and "browser" in cfg.layers
     cfg.models[0].votes = 3
     cfg.save(path)
     assert Config.load(path, with_secrets=False).models[0].votes == 3

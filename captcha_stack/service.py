@@ -10,6 +10,7 @@ from typing import Any
 from .chain import Chain, State, today
 from .config import Config
 from .layers import HumanLayer, Layer, LocalLayer, Result, VlmLayer
+from .layers.browser import BrowserLayer, ask_models
 
 
 def build_layers(cfg: Config) -> list[Layer]:
@@ -21,8 +22,15 @@ def build_layers(cfg: Config) -> list[Layer]:
             out += [VlmLayer(m) for m in cfg.models]
         elif name.startswith("vlm:"):
             out += [VlmLayer(m) for m in cfg.models if m.name == name[4:]]
+        elif name == "browser":
+            # filled below: the browser asks every enabled model, wherever it sits in the order
+            out.append(BrowserLayer(None))
         elif name == "human":
             out.append(HumanLayer(cfg.human_base_url, cfg.human_api_key, cfg.human_timeout, cfg.human_poll_interval))
+    models = [x for x in out if isinstance(x, VlmLayer)]
+    for x in out:
+        if isinstance(x, BrowserLayer) and models:
+            x.models = lambda t: ask_models(models, t)
     return out
 
 

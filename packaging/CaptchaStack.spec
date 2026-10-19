@@ -1,7 +1,7 @@
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
 
 datas, binaries, hiddenimports = [], [], []
-for pkg in ("ddddocr", "onnxruntime", "rumps", "WebKit"):
+for pkg in ("ddddocr", "onnxruntime", "rumps", "WebKit", "patchright"):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

@@ -133,10 +133,12 @@ def test_solved_captchas_show_up_in_recent(ui):
 
 def test_layers_move_and_toggle(ui):
     c, client = ui
-    client.post("/api/ui/move-layer", json={"id": "human", "step": -1})
-    assert c.cfg.layers == ["human", "local"]
+    client.post("/api/ui/move-layer", json={"id": "human", "step": -2})
+    assert c.cfg.layers == ["human", "local", "browser"]
     r = client.post("/api/ui/toggle-layer", json={"id": "local"}).json()
-    assert [(x["id"], x["enabled"]) for x in r["state"]["layers"]] == [("human", True), ("local", False)]
+    assert [(x["id"], x["enabled"]) for x in r["state"]["layers"]] == [("human", True), ("browser", True), ("local", False)]
+    client.post("/api/ui/toggle-layer", json={"id": "local"})
+    assert c.cfg.layers == ["human", "local", "browser"]
 
 
 def test_key_left_by_an_older_build_asks_to_be_entered_again(tmp_path, monkeypatch):

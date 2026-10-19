@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 from .config import HUMAN_CURRENCY, HUMAN_TOPUP
 from .control import HUMAN_TITLES, LAYER_TITLES, money
+from .layers.browser import BrowserLayer
 from .layers.vlm import LAST_ERRORS
 from .providers import NO_EFFORT
 
@@ -33,7 +34,8 @@ TYPE_TITLES = {
 
 LAYER_CAN = {"local": "текст на картинке, слайдеры · бесплатно, доли секунды",
              "human": "всё, включая reCAPTCHA, hCaptcha, Turnstile · платно, 10–60 секунд",
-             "vlm": "текст, сетки картинок, клики · центы, 5–30 секунд"}
+             "vlm": "текст, сетки картинок, клики · центы, 5–30 секунд",
+             "browser": "жмёт галочку, картинки отдаёт моделям выше · бесплатно, 10–60 секунд"}
 
 
 EFFORT_TITLES = {"default": "как у поставщика", "none": "нет", "low": "мало", "medium": "средне", "high": "много"}
@@ -62,11 +64,15 @@ def state(c: "Controller") -> dict[str, Any]:
     cfg = c.cfg
     layers = []
     known = {f"vlm:{m.name}": m for m in cfg.models}
-    order = list(cfg.layers) + [i for i in ["local", *known, "human"] if i not in cfg.layers]
+    order = list(cfg.layers) + [i for i in ["local", *known, "browser", "human"] if i not in cfg.layers]
     built = {x.name: x for x in c.service.chain.layers}
     for layer_id in order:
         if layer_id == "local":
             title, ready, why = LAYER_TITLES["local"], True, ""
+        elif layer_id == "browser":
+            title = LAYER_TITLES["browser"]
+            ready = BrowserLayer(None).available()
+            why = "" if ready else "нужен Google Chrome"
         elif layer_id == "human":
             title = f"Люди ({HUMAN_TITLES.get(cfg.human_provider, cfg.human_provider)})"
             ready, why = bool(cfg.human_api_key), "" if cfg.human_api_key else "нет ключа"

@@ -21,7 +21,7 @@ from .server import create_app
 from .service import Service
 
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / "app.captcha-stack.plist"
-LAYER_TITLES = {"local": "Локальная модель", "human": "Люди"}
+LAYER_TITLES = {"local": "Локальная модель", "browser": "Браузер (галочки: reCAPTCHA, hCaptcha, Turnstile)", "human": "Люди"}
 HUMAN_TITLES = {"rucaptcha": "RuCaptcha", "2captcha": "2Captcha"}
 
 
@@ -107,7 +107,7 @@ class Controller:
     def _add_model_layer(self, name: str) -> None:
         if f"vlm:{name}" in self.cfg.layers:
             return
-        at = self.cfg.layers.index("human") if "human" in self.cfg.layers else len(self.cfg.layers)
+        at = next((i for i, x in enumerate(self.cfg.layers) if x in ("browser", "human")), len(self.cfg.layers))
         self.cfg.layers.insert(at, f"vlm:{name}")
 
     def _apply(self) -> None:
@@ -142,6 +142,7 @@ class Controller:
         items = [("local", LAYER_TITLES["local"], "local" in self.cfg.layers)]
         for m in self.cfg.models:
             items.append((f"vlm:{m.name}", f"Модель {m.name}", f"vlm:{m.name}" in self.cfg.layers))
+        items.append(("browser", LAYER_TITLES["browser"], "browser" in self.cfg.layers))
         items.append(("human", f"{LAYER_TITLES['human']} ({self.cfg.human_provider})", "human" in self.cfg.layers))
         return items
 
@@ -151,10 +152,14 @@ class Controller:
 
     # --- actions ----------------------------------------------------------------
     def toggle_layer(self, layer_id: str) -> None:
-        order = [i for i, _, _ in self.layer_items()]
-        enabled = {i for i, _, on in self.layer_items() if on}
-        enabled ^= {layer_id}
-        self.cfg.layers = [i for i in order if i in enabled]
+        if layer_id in self.cfg.layers:
+            self.cfg.layers.remove(layer_id)
+        else:
+            # keeps the user's order: the layer goes before the first enabled layer that follows it by default
+            order = [i for i, _, _ in self.layer_items()]
+            after = order[order.index(layer_id) + 1:] if layer_id in order else []
+            at = next((self.cfg.layers.index(i) for i in after if i in self.cfg.layers), len(self.cfg.layers))
+            self.cfg.layers.insert(at, layer_id)
         self._apply()
 
     def add_model(self, name: str, provider: str, model: str, key: str, base_url: str = "") -> ModelSpec:
