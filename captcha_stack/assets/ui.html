@@ -189,10 +189,11 @@ body.pop #app { display: none; } body.pop #pop { display: flex; }
 <body>
 <svg width="0" height="0" style="position:absolute">
   <symbol id="logo" viewBox="0 0 24 24">
-    <rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="none" stroke="currentColor" stroke-width="1.6"/>
-    <path d="M7 12.4l3.2 3.1L17.2 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M20 0.6l.75 2.15 2.15.75-2.15.75L20 6.4l-.75-2.15-2.15-.75 2.15-.75z" fill="currentColor"/>
+    <path d="M2 7V4.5A2.5 2.5 0 0 1 4.5 2H7M17 2h2.5A2.5 2.5 0 0 1 22 4.5V7M22 17v2.5a2.5 2.5 0 0 1-2.5 2.5H17M7 22H4.5A2.5 2.5 0 0 1 2 19.5V17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+    <path d="M4.5 12c2-3.6 4.6-5.3 7.5-5.3s5.5 1.7 7.5 5.3c-2 3.6-4.6 5.3-7.5 5.3S6.5 15.6 4.5 12z" fill="currentColor" mask="url(#eyeHole)"/>
+    <circle cx="12" cy="12" r="1.4" fill="currentColor"/>
   </symbol>
+  <mask id="eyeHole"><rect width="24" height="24" fill="#fff"/><circle cx="12" cy="12" r="2.9" fill="#000"/></mask>
   <symbol id="i-today" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
   <symbol id="i-path" viewBox="0 0 16 16"><path d="M2 8h12M9 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
   <symbol id="i-key" viewBox="0 0 16 16"><circle cx="5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 8h6M12 8v3" stroke="currentColor" stroke-width="1.4"/></symbol>
