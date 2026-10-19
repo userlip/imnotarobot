@@ -32,6 +32,7 @@ def build_layers(cfg: Config) -> list[Layer]:
     for x in out:
         if isinstance(x, BrowserLayer) and models:
             x.models = lambda t: ask_models(models, t)
+            x.hands_spec = next((m.spec for m in models if m.available()), None)
     return out
 
 

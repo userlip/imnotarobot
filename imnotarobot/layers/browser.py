@@ -18,6 +18,7 @@ from typing import Any, Awaitable, Callable
 from PIL import Image
 
 from . import tiles
+from .hands import Hands, to_page
 from .base import Layer, Result, Unavailable, Unsolvable
 from ..i18n import tr
 
@@ -99,6 +100,11 @@ class BrowserLayer(Layer):
         self.timeout = timeout
         self.rounds = rounds
         self._classifier = None
+        # the model that drives multi-step challenges; set by the service from the enabled vision models
+        self.hands_spec = None
+        # off by default: on demo pages the model often declines multi-step captcha work, and we do not reword
+        # prompts to get around a refusal; the one-shot canvas answer passes more often
+        self.use_hands = False
         # each Chrome takes a few hundred MB
         self._slots = asyncio.Semaphore(parallel)
 
@@ -276,11 +282,39 @@ class BrowserLayer(Layer):
                 await cells.nth(t - 1).click()
                 await asyncio.sleep(0.2)
             log.info("hcaptcha grid: %s -> %s", comment, tiles)
+        elif self.hands_spec is not None and self.use_hands:
+            await self._hands_round(page, frame_el.first, ch, comment)
         else:
             await self._canvas_round(page, canvas.first, comment)
         await ch.locator(".button-submit").click()
         await asyncio.sleep(2)
         return True
+
+    async def _hands_round(self, page, frame_el, ch, comment: str) -> None:
+        """The model works the canvas challenge step by step, pressing Next / Verify itself."""
+        async def shoot():
+            box = await frame_el.bounding_box()
+            return await frame_el.screenshot(), (box["x"], box["y"], box["width"], box["height"])
+
+        async def act(action, box):
+            if action["action"] == "click":
+                await page.mouse.click(*to_page(action["point"], box))
+            else:
+                await drag_like_a_hand(page, to_page(action["from"], box), to_page(action["to"], box))
+            await asyncio.sleep(0.8)
+
+        async def passed():
+            return bool(await self._token(page, "hcaptcha"))
+
+        async def instruction():
+            try:
+                return " ".join((await ch.locator(".prompt-text").first.inner_text(timeout=2000)).split())
+            except Exception:
+                return comment
+
+        low = comment.lower()
+        hint = next((h for keys, h in CANVAS_HINTS if any(k in low for k in keys)), "")
+        await Hands(self.hands_spec).solve(shoot, act, passed, instruction, hint)
 
     async def _canvas_round(self, page, canvas, comment: str) -> None:
         """Click and drag challenges drawn on a canvas: the models point, the browser clicks or drags."""

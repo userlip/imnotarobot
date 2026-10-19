@@ -91,3 +91,31 @@ def test_tile_classifier_answers_only_when_sure(monkeypatch, tmp_path):
     unsure = sure[:4] + [0.5] + sure[5:]
     assert tiles.TileClassifier(Session(unsure)).answer(buf.getvalue(), 3, 3, "Select all images with a bus") is None
     assert tiles.TileClassifier(Session(sure)).answer(buf.getvalue(), 3, 3, "Select all images with boats") is None
+
+
+def test_hands_stop_when_the_model_declines(monkeypatch):
+    from imnotarobot.layers import hands
+    from imnotarobot.providers import ModelSpec
+
+    replies = iter(['{"action": "click", "point": [500, 500]}', "I can't help with bypassing CAPTCHAs."])
+
+    async def fake_ask(*a, **k):
+        return next(replies), {}
+
+    monkeypatch.setattr(hands, "ask", fake_ask)
+    done = []
+
+    async def shoot():
+        return b"png", (10.0, 20.0, 200.0, 100.0)
+
+    async def act(action, box):
+        done.append(hands.to_page(action["point"], box))
+
+    async def passed():
+        return False
+
+    async def instruction():
+        return "Click the egg-laying animal"
+
+    ok = asyncio.run(hands.Hands(ModelSpec(name="m", provider="gemini", api_key="k")).solve(shoot, act, passed, instruction))
+    assert ok is False and done == [(110.0, 70.0)]
