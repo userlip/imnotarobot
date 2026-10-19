@@ -59,3 +59,35 @@ def test_browser_layer_gets_every_enabled_model():
 def test_live_test_keys_give_a_token(task):
     r = asyncio.run(BrowserLayer(None).solve(task))
     assert r.solution["token"]
+
+
+def test_tile_classifier_answers_only_when_sure(monkeypatch, tmp_path):
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    from imnotarobot.layers import tiles
+
+    buf = io.BytesIO()
+    Image.new("RGB", (300, 300), (120, 120, 120)).save(buf, "PNG")
+    bus = tiles.CLASSES.index("bus")
+
+    class Session:
+        def __init__(self, p):
+            self.p = p
+
+        def get_inputs(self):
+            return [type("I", (), {"name": "images"})]
+
+        def run(self, _, feed):
+            assert feed["images"].shape == (9, 3, 640, 640)
+            out = np.zeros((9, len(tiles.CLASSES)), dtype=np.float32)
+            out[:, bus] = self.p
+            return [out]
+
+    sure = [0.95, 0.01, 0.02, 0.9, 0.03, 0.0, 0.0, 0.99, 0.05]
+    assert tiles.TileClassifier(Session(sure)).answer(buf.getvalue(), 3, 3, "Select all images with a bus") == [1, 4, 8]
+    unsure = sure[:4] + [0.5] + sure[5:]
+    assert tiles.TileClassifier(Session(unsure)).answer(buf.getvalue(), 3, 3, "Select all images with a bus") is None
+    assert tiles.TileClassifier(Session(sure)).answer(buf.getvalue(), 3, 3, "Select all images with boats") is None

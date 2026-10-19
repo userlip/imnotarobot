@@ -16,6 +16,7 @@ from typing import Any, Awaitable, Callable
 
 from PIL import Image
 
+from . import tiles
 from .base import Layer, Result, Unavailable, Unsolvable
 from ..i18n import tr
 
@@ -96,6 +97,7 @@ class BrowserLayer(Layer):
         self.models = models
         self.timeout = timeout
         self.rounds = rounds
+        self._classifier = None
         # each Chrome takes a few hundred MB
         self._slots = asyncio.Semaphore(parallel)
 
@@ -213,8 +215,11 @@ class BrowserLayer(Layer):
         cells = bf.locator("#rc-imageselect-target td")
         for _ in range(6):
             started = time.monotonic()
-            tiles = await self._ask(await table.first.screenshot(), comment, size, size)
-            log.info("recaptcha ask: %.1f s -> %s", time.monotonic() - started, tiles)
+            shot = await table.first.screenshot()
+            tiles = self._local_tiles(shot, size, comment)
+            if tiles is None:
+                tiles = await self._ask(shot, comment, size, size)
+            log.info("recaptcha tiles: %.1f s -> %s", time.monotonic() - started, tiles)
             for t in tiles:
                 await cells.nth(t - 1).click()
                 await asyncio.sleep(0.15)
@@ -225,6 +230,18 @@ class BrowserLayer(Layer):
         await bf.locator("#recaptcha-verify-button").click()
         await asyncio.sleep(2)
         return True
+
+    def _local_tiles(self, shot: bytes, size: int, comment: str) -> list[int] | None:
+        """The local classifier answers 3x3 picture tasks when it is sure about every tile."""
+        if size != 3 or not tiles.available():
+            return None
+        if self._classifier is None:
+            self._classifier = tiles.TileClassifier()
+        try:
+            return self._classifier.answer(shot, 3, 3, comment)
+        except Exception as e:
+            log.warning("tile classifier failed: %s", e)
+            return None
 
     @staticmethod
     async def _wait_for_new_tiles(bf) -> None:
