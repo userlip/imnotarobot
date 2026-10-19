@@ -165,7 +165,7 @@ pre { background: var(--fill); border-radius: 10px; padding: 10px 12px; overflow
 
 /* ---------- menu bar panel ---------- */
 body.pop { background: transparent; overflow: hidden; }
-#pop { display: none; padding: 12px; flex-direction: column; gap: 10px; height: 100%; }
+#pop { display: none; padding: 12px; flex-direction: column; gap: 10px; }
 body.pop #app { display: none; } body.pop #pop { display: flex; }
 #pop .head { display: flex; align-items: center; gap: 9px; padding: 2px 4px; }
 #pop .head b { font-size: 14px; flex: 1; }
@@ -190,7 +190,7 @@ body.pop #app { display: none; } body.pop #pop { display: flex; }
 /* the panel is translucent: tiles stay readable on light, dark and wallpaper-tinted backgrounds */
 body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(0,0,0,.1); }
 @media (prefers-color-scheme: dark) { body.pop { --tile: rgba(255,255,255,.07); --fill: rgba(255,255,255,.1); --line: rgba(255,255,255,.12); } }
-#pop .more { margin-top: auto; padding: 8px 6px 0; border-top: .5px solid var(--line); display: flex; gap: 14px; color: var(--fg2); }
+#pop .more { margin-top: 2px; padding: 8px 6px 0; border-top: .5px solid var(--line); display: flex; gap: 14px; color: var(--fg2); }
 #pop .more span { cursor: default; } #pop .more span:hover { color: var(--fg); }
 </style>
 </head>
@@ -766,6 +766,11 @@ function renderPop(s, st, on, hotId) {
     return `<div class="st ${l.enabled ? "" : "off"} ${l.id === hotId ? "hot" : ""}"><div class="ic">${l.enabled ? ++n : "–"}</div>
       <div><span class="n">${esc(shortTitle(l))}</span><small>${esc(popNote(l))}</small></div><span class="r">${esc(right)}</span></div>`;
   }).join("");
+  // the native panel takes the page's height, so nothing is cut off whatever the number of steps
+  requestAnimationFrame(() => {
+    const h = Math.ceil($("pop").getBoundingClientRect().height);
+    if (h && h !== renderPop.height) { renderPop.height = h; api("panel-size", {height: h}); }
+  });
 }
 
 async function openEntry(id) {

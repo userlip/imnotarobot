@@ -170,6 +170,11 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     async def run_action(action: str, b: dict[str, Any]) -> Any:
         from starlette.concurrency import run_in_threadpool
 
+        if action == "panel-size":
+            hook = c.hooks.get("panel-size")
+            if hook:
+                hook(int(b.get("height") or 0))
+            return done("")
         if action in ("open-window", "quit"):
             hook = c.hooks.get(action)
             if hook is None:

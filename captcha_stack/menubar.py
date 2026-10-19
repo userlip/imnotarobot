@@ -137,6 +137,7 @@ class MenuPanel:
     def __init__(self, url: str):
         self.url = url
         self.popover = None
+        self.height = POPOVER_SIZE[1]
 
     def toggle(self, button) -> None:
         from AppKit import NSMakeRect, NSMinYEdge, NSPopover, NSViewController
@@ -146,7 +147,7 @@ class MenuPanel:
             vc.setView_(_web_view(self.url, NSMakeRect(0, 0, *POPOVER_SIZE), transparent=True))
             p = NSPopover.alloc().init()
             p.setContentViewController_(vc)
-            p.setContentSize_(POPOVER_SIZE)
+            p.setContentSize_((POPOVER_SIZE[0], self.height))
             p.setBehavior_(1)  # transient: closes on a click elsewhere
             p.setAnimates_(True)
             self.popover = p
@@ -156,6 +157,11 @@ class MenuPanel:
         self.popover.contentViewController().view().evaluateJavaScript_completionHandler_("api('state')", None)
         self.popover.showRelativeToRect_ofView_preferredEdge_(button.bounds(), button, NSMinYEdge)
         self.popover.contentViewController().view().window().makeKeyWindow()
+
+    def resize(self, height: int) -> None:
+        self.height = max(200, min(height, 900))
+        if self.popover is not None:
+            self.popover.setContentSize_((POPOVER_SIZE[0], self.height))
 
     def close(self) -> None:
         if self.popover is not None and self.popover.isShown():
@@ -172,6 +178,7 @@ class MenuBarApp(rumps.App):
         self.panel = MenuPanel(page + "&view=pop")
         controller.hooks["open-window"] = lambda view: self._on_main(self.open_window, view)
         controller.hooks["quit"] = lambda _: self._on_main(self.quit, None)
+        controller.hooks["panel-size"] = lambda h: self._on_main(self.panel.resize, h)
         self._started = False
         rumps.Timer(self.tick, 2).start()
         threading.Thread(target=self._check_human, daemon=True).start()

@@ -231,3 +231,12 @@ def test_english_messages_fill_their_values(monkeypatch):
     monkeypatch.setattr(i18n, "LANG", "en")
     assert i18n.tr("Сегодня: решено {solved} · {spend}", solved=3, spend="models $0.000") == "Today: solved 3 · models $0.000"
     assert i18n.tr("фраза без перевода") == "фраза без перевода"
+
+
+def test_panel_reports_its_height_to_the_app(ui):
+    c, client = ui
+    assert client.post("/api/ui/panel-size", json={"height": 520}).json()["ok"]
+    sizes = []
+    c.hooks["panel-size"] = sizes.append
+    client.post("/api/ui/panel-size", json={"height": 520})
+    assert sizes == [520]
