@@ -17,6 +17,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 from . import config
 from .imaging import font
+from .i18n import tr
 
 FONTS = ["/System/Library/Fonts/Supplemental/Arial.ttf", "/System/Library/Fonts/Supplemental/Courier New Bold.ttf",
          "/System/Library/Fonts/Supplemental/Georgia.ttf", "/System/Library/Fonts/Supplemental/Verdana Bold.ttf",
@@ -193,8 +194,8 @@ VENUS_URL = "https://huggingface.co/datasets/inclusionAI/VenusBench-CAPTCHA"
 DOWNLOADABLE = {
     "venusbench": {
         "title": "VenusBench-CAPTCHA", "size_mb": 36, "cases": 129, "url": VENUS_URL,
-        "about": "Настоящие капчи с сайтов и приложений: текст, клики по иконкам и словам, задачи на смысл",
-        "license": "лицензия не указана — только для личной проверки",
+        "about": tr("Настоящие капчи с сайтов и приложений: текст, клики по иконкам и словам, задачи на смысл"),
+        "license": tr("лицензия не указана — только для личной проверки"),
         "files": ["instruction", "images/OCR", "images/icon_click", "images/text_click", "images/visual_reasoning",
                   "images/oneclick_login"],
     },

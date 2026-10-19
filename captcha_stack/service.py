@@ -11,6 +11,7 @@ from .chain import Chain, State, today
 from .config import Config
 from .layers import HumanLayer, Layer, LocalLayer, Result, VlmLayer
 from .layers.browser import BrowserLayer, ask_models
+from .i18n import tr
 
 
 def build_layers(cfg: Config) -> list[Layer]:
@@ -41,12 +42,12 @@ def _short_answer(solution: dict[str, Any]) -> str:
     if "text" in solution:
         return str(solution["text"])[:40]
     if "click" in solution:
-        return "клетки " + ", ".join(map(str, solution["click"]))
+        return tr("клетки {tiles}", tiles=", ".join(map(str, solution["click"])))
     if "coordinates" in solution:
         return "; ".join(f"{p['x']},{p['y']}" for p in solution["coordinates"])[:60]
     if "x" in solution:
-        return f"сдвиг {solution['x']}"
-    return "токен получен"
+        return tr("сдвиг {x}", x=solution["x"])
+    return tr("токен получен")
 
 
 def limits(cfg: Config) -> dict[str, float]:
@@ -147,7 +148,7 @@ class Service:
         started = time.time()
         try:
             if self.paused:
-                raise RuntimeError("решатель на паузе")
+                raise RuntimeError(tr("решатель на паузе"))
             job.result = await self.chain.solve(job.task)
         except Exception as e:
             job.error = str(e)

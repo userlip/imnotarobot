@@ -5,8 +5,9 @@ from pathlib import Path
 import rumps
 
 from .control import Controller
+from .i18n import tr
 
-APP_NAME = "Я не робот"
+APP_NAME = tr("Я не робот")
 ICON = Path(__file__).with_name("assets") / "menubar.png"
 POPOVER_SIZE = (340, 470)
 
@@ -18,17 +19,17 @@ def install_edit_menu() -> None:
     app = NSApplication.sharedApplication()
     main = NSMenu.alloc().init()
     app_menu = NSMenu.alloc().initWithTitle_(APP_NAME)
-    app_menu.addItemWithTitle_action_keyEquivalent_(f"О программе «{APP_NAME}»", "orderFrontStandardAboutPanel:", "")
+    app_menu.addItemWithTitle_action_keyEquivalent_(tr("О программе «{app}»", app=APP_NAME), "orderFrontStandardAboutPanel:", "")
     app_menu.addItem_(NSMenuItem.separatorItem())
-    app_menu.addItemWithTitle_action_keyEquivalent_("Скрыть окно", "hide:", "h")
-    app_menu.addItemWithTitle_action_keyEquivalent_(f"Выйти из «{APP_NAME}»", "terminate:", "q")
-    edit = NSMenu.alloc().initWithTitle_("Правка")
+    app_menu.addItemWithTitle_action_keyEquivalent_(tr("Скрыть окно"), "hide:", "h")
+    app_menu.addItemWithTitle_action_keyEquivalent_(tr("Выйти из «{app}»", app=APP_NAME), "terminate:", "q")
+    edit = NSMenu.alloc().initWithTitle_(tr("Правка"))
     for title, action, key in [("Отменить", "undo:", "z"), ("Повторить", "redo:", "Z"), ("Вырезать", "cut:", "x"),
                                ("Копировать", "copy:", "c"), ("Вставить", "paste:", "v"), ("Выбрать всё", "selectAll:", "a")]:
-        edit.addItemWithTitle_action_keyEquivalent_(title, action, key)
-    window = NSMenu.alloc().initWithTitle_("Окно")
-    window.addItemWithTitle_action_keyEquivalent_("Закрыть", "performClose:", "w")
-    window.addItemWithTitle_action_keyEquivalent_("Свернуть", "performMiniaturize:", "m")
+        edit.addItemWithTitle_action_keyEquivalent_(tr(title), action, key)
+    window = NSMenu.alloc().initWithTitle_(tr("Окно"))
+    window.addItemWithTitle_action_keyEquivalent_(tr("Закрыть"), "performClose:", "w")
+    window.addItemWithTitle_action_keyEquivalent_(tr("Свернуть"), "performMiniaturize:", "m")
     for menu in (app_menu, edit, window):
         holder = NSMenuItem.alloc().init()
         holder.setSubmenu_(menu)

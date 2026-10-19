@@ -20,9 +20,10 @@ from .discovery import detect_sync
 from .providers import PRESETS, ModelSpec
 from .server import create_app
 from .service import Service
+from .i18n import tr
 
 LAUNCH_AGENT = Path.home() / "Library" / "LaunchAgents" / "app.captcha-stack.plist"
-LAYER_TITLES = {"local": "Локальная модель", "browser": "Браузер (галочки: reCAPTCHA, hCaptcha, Turnstile)", "human": "Люди"}
+LAYER_TITLES = {"local": tr("Локальная модель"), "browser": tr("Браузер (галочки: reCAPTCHA, hCaptcha, Turnstile)"), "human": tr("Люди")}
 HUMAN_TITLES = {"rucaptcha": "RuCaptcha", "2captcha": "2Captcha"}
 
 
@@ -64,12 +65,12 @@ class Controller:
                     return port
                 except OSError:
                     continue
-        raise RuntimeError(f"порты {self.cfg.port}–{self.cfg.port + 19} заняты другими программами")
+        raise RuntimeError(tr("порты {first}–{last} заняты другими программами", first=self.cfg.port, last=self.cfg.port + 19))
 
     def start_server(self) -> None:
         port = self.free_port()
         if port != self.cfg.port:
-            self.port_note = f"Порт {self.cfg.port} занят другой программой — работаю на {port}. Направьте программы сюда."
+            self.port_note = tr("Порт {port} занят другой программой — работаю на {actual}. Направьте программы сюда.", port=self.cfg.port, actual=port)
         self.port = port
         app = create_app(service=self.service)
         from .ui import add_ui_routes
@@ -125,7 +126,7 @@ class Controller:
     def today_line(self) -> str:
         day = self.service.today()
         solved = int(sum(v.get("solved", 0) for v in day.values()))
-        return f"Сегодня: решено {solved} · {self.spend_text()}"
+        return tr("Сегодня: решено {solved} · {spend}", solved=solved, spend=self.spend_text())
 
     def spend_today(self) -> dict[str, float]:
         """Today's spend split by currency: cloud models in dollars, workers in their service's currency."""
@@ -135,22 +136,22 @@ class Controller:
     def spend_text(self) -> str:
         s = self.spend_today()
         cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
-        parts = [f"модели ${s['cloud_usd']:.3f}"]
+        parts = [tr("модели ${usd}", usd=f"{s['cloud_usd']:.3f}")]
         if self.cfg.human_api_key or s["human"]:
-            parts.append(f"люди {money(s['human'], cur)}")
+            parts.append(tr("люди {money}", money=money(s["human"], cur)))
         return ", ".join(parts)
 
     def layer_items(self) -> list[tuple[str, str, bool]]:
         """(layer id, title, enabled) for every layer that can be switched."""
         items = [("local", LAYER_TITLES["local"], "local" in self.cfg.layers)]
         for m in self.cfg.models:
-            items.append((f"vlm:{m.name}", f"Модель {m.name}", f"vlm:{m.name}" in self.cfg.layers))
+            items.append((f"vlm:{m.name}", tr("Модель {name}", name=m.name), f"vlm:{m.name}" in self.cfg.layers))
         items.append(("browser", LAYER_TITLES["browser"], "browser" in self.cfg.layers))
         items.append(("human", f"{LAYER_TITLES['human']} ({self.cfg.human_provider})", "human" in self.cfg.layers))
         return items
 
     def model_lines(self) -> list[tuple[str, str]]:
-        return [(m.name, f"{'✓' if m.ready() else '⚠ нет ключа'}  {m.name}: {m.provider} / {m.model or '?'}")
+        return [(m.name, f"{'✓' if m.ready() else tr('⚠ нет ключа')}  {m.name}: {m.provider} / {m.model or '?'}")
                 for m in self.cfg.models]
 
     # --- actions ----------------------------------------------------------------
@@ -168,12 +169,12 @@ class Controller:
     def add_model(self, name: str, provider: str, model: str, key: str, base_url: str = "") -> ModelSpec:
         name = name.strip() or provider
         if provider not in PRESETS:
-            raise ValueError(f"неизвестный поставщик {provider!r}; есть: {', '.join(PRESETS)}")
+            raise ValueError(tr("неизвестный поставщик {provider}; есть: {known}", provider=repr(provider), known=", ".join(PRESETS)))
         if any(m.name == name for m in self.cfg.models):
-            raise ValueError(f"модель с именем {name!r} уже есть")
+            raise ValueError(tr("модель с именем {name} уже есть", name=repr(name)))
         spec = ModelSpec(name=name, provider=provider, model=model.strip(), base_url=base_url.strip())
         if not spec.model:
-            raise ValueError("укажите название модели")
+            raise ValueError(tr("укажите название модели"))
         if key.strip():
             config_mod.set_secret(f"model:{name}", key.strip())
         self.cfg.models.append(spec)
@@ -194,7 +195,7 @@ class Controller:
     def set_human(self, provider: str | None = None, key: str | None = None, daily_limit: float | None = None) -> None:
         if provider is not None:
             if provider not in HUMAN_PRESETS:
-                raise ValueError(f"сервис {provider!r} не знаю; есть: {', '.join(HUMAN_PRESETS)}")
+                raise ValueError(tr("сервис {provider} не знаю; есть: {known}", provider=repr(provider), known=", ".join(HUMAN_PRESETS)))
             self.cfg.human_provider = provider
             self.cfg.human_base_url = HUMAN_PRESETS[provider]
         if key is not None:
@@ -205,7 +206,7 @@ class Controller:
             self.human_status = {}
         if daily_limit is not None:
             if daily_limit < 0:
-                raise ValueError("лимит не может быть отрицательным")
+                raise ValueError(tr("лимит не может быть отрицательным"))
             self.cfg.human_daily_limit = daily_limit
         self._apply()
 
@@ -216,7 +217,7 @@ class Controller:
         """Asks the workers' service for the balance: proves the key works. Cached for the menu."""
         human = self.service.chain.layer("human")
         if not human or not human.available():
-            self.human_status = {"ok": False, "error": "нет ключа"}
+            self.human_status = {"ok": False, "error": tr("нет ключа")}
         else:
             try:
                 self.human_status = {"ok": True, "balance": asyncio.run(self.service.balance())}
@@ -228,14 +229,14 @@ class Controller:
         st = getattr(self, "human_status", None) or {}
         name = HUMAN_TITLES.get(self.cfg.human_provider, self.cfg.human_provider)
         if not self.cfg.human_api_key:
-            return f"Люди ({name}): введите ключ ещё раз" if self.legacy_human_key else f"Люди ({name}): нет ключа"
+            return tr("Люди ({name}): введите ключ ещё раз", name=name) if self.legacy_human_key else tr("Люди ({name}): нет ключа", name=name)
         if st.get("ok"):
             cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
-            low = " — пора пополнить" if st["balance"] < self.cfg.human_low_balance else ""
-            return f"Люди ({name}): ✓ баланс {money(st['balance'], cur)}{low}"
+            low = tr(" — пора пополнить") if st["balance"] < self.cfg.human_low_balance else ""
+            return tr("Люди ({name}): ✓ баланс {money}{low}", name=name, money=money(st["balance"], cur), low=low)
         if st:
-            return f"Люди ({name}): ⚠ {st.get('error', '')[:40]}"
-        return f"Люди ({name}): ключ есть"
+            return tr("Люди ({name}): ⚠ {error}", name=name, error=st.get("error", "")[:40])
+        return tr("Люди ({name}): ключ есть", name=name)
 
     def move_layer(self, layer_id: str, step: int) -> None:
         layers = self.cfg.layers
@@ -251,8 +252,8 @@ class Controller:
         """Detects the provider, stores the secret in the Keychain and remembers the provider's model list."""
         secret = secret.strip()
         if not secret:
-            raise ValueError("пустой ключ")
-        self.detecting = "начинаю поиск поставщика"
+            raise ValueError(tr("пустой ключ"))
+        self.detecting = tr("начинаю поиск поставщика")
         try:
             found = detect_sync(secret, base_url.strip(), progress=lambda text: setattr(self, "detecting", text))
         finally:
@@ -272,7 +273,7 @@ class Controller:
     def key(self, name: str) -> KeyEntry:
         entry = next((k for k in self.cfg.keys if k.name == name), None)
         if entry is None:
-            raise ValueError(f"ключа {name!r} нет")
+            raise ValueError(tr("ключа {name} нет", name=repr(name)))
         return entry
 
     def refresh_key(self, name: str) -> KeyEntry:
@@ -334,7 +335,7 @@ class Controller:
         cases = self.bench_cases()
         results = asyncio.run(bench.run(specs, cases, votes=votes, progress=progress, stop=stop))
         if not results:
-            raise RuntimeError("сравнение остановлено до первого ответа")
+            raise RuntimeError(tr("сравнение остановлено до первого ответа"))
         stamp = time.strftime("%Y%m%d-%H%M%S")
         out = Path(config_mod.APP_DIR) / "reports" / f"compare-{stamp}.html"
         (out.with_suffix(".json")).parent.mkdir(parents=True, exist_ok=True)
@@ -349,7 +350,7 @@ class Controller:
 
         base = next((s for s in self.bench_specs(key_name) if s.model == model_id), None)
         if base is None:
-            raise ValueError(f"модели {model_id} у ключа {key_name} нет")
+            raise ValueError(tr("модели {model} у ключа {key} нет", model=model_id, key=key_name))
         return [replace(base, name=f"{base.name} · раздумья {level}", effort_recognition=level, effort_clicks=level)
                 for level in EFFORTS if level != "default"]
 
@@ -357,20 +358,20 @@ class Controller:
         from .providers import EFFORTS
 
         if level not in EFFORTS or kind not in ("recognition", "clicks"):
-            raise ValueError("неизвестный уровень раздумий")
+            raise ValueError(tr("неизвестный уровень раздумий"))
         spec = next((m for m in self.cfg.models if m.key == key_name and m.model == model_id), None)
         if spec is None:
-            raise ValueError("сначала включите модель")
+            raise ValueError(tr("сначала включите модель"))
         setattr(spec, f"effort_{kind}", level)
         self._apply()
 
     def start_bench(self, key_name: str | None, specs: list[ModelSpec] | None = None, label: str = "") -> dict:
         """Runs the comparison in a background thread; progress and results land in self.bench."""
         if self.bench.get("running"):
-            raise ValueError("сравнение уже идёт")
+            raise ValueError(tr("сравнение уже идёт"))
         specs = specs or self.bench_specs(key_name)
         if not specs:
-            raise ValueError("нет моделей с картинками для сравнения")
+            raise ValueError(tr("нет моделей с картинками для сравнения"))
         runs, _ = self.bench_estimate(specs)
         state = {"running": True, "done": 0, "total": runs, "key": label or key_name, "started": time.time(), "stopping": False}
         self.bench = state
@@ -443,20 +444,20 @@ class Controller:
         cur = HUMAN_CURRENCY.get(self.cfg.human_provider, "$")
         st = self.human_status or {}
         if st.get("ok") and st["balance"] < self.cfg.human_low_balance:
-            out.append(("low-balance", f"На {HUMAN_TITLES.get(self.cfg.human_provider)} осталось {money(st['balance'], cur)} — пора пополнить."))
+            out.append(("low-balance", tr("На {service} осталось {money} — пора пополнить.", service=HUMAN_TITLES.get(self.cfg.human_provider), money=money(st["balance"], cur))))
         limit = self.cfg.human_daily_limit
         if limit and self.service.chain.state.spent_today("human") >= limit:
-            out.append(("human-limit", f"Люди: исчерпан дневной лимит {money(limit, cur)}. До завтра капчи им не отправляются."))
+            out.append(("human-limit", tr("Люди: исчерпан дневной лимит {money}. До завтра капчи им не отправляются.", money=money(limit, cur))))
         cloud = self.cfg.cloud_daily_limit_usd
         if cloud and self.spend_today()["cloud_usd"] >= cloud:
-            out.append(("cloud-limit", f"Облачные модели: исчерпан дневной лимит ${cloud:g}."))
+            out.append(("cloud-limit", tr("Облачные модели: исчерпан дневной лимит ${limit}.", limit=f"{cloud:g}")))
         from .layers.vlm import LAST_ERRORS
 
         for name, (_, msg) in LAST_ERRORS.items():
-            out.append((f"model-error:{name}:{msg[:40]}", f"Модель {name[4:]} ошибается: {msg[:120]}"))
+            out.append((f"model-error:{name}:{msg[:40]}", tr("Модель {name} ошибается: {error}", name=name[4:], error=msg[:120])))
         if self.bench.get("finished") and not self.bench.get("running"):
             best = (self.bench.get("rows") or [{}])[0].get("model")
-            text = f"Сравнение моделей готово. Лучшая: {best}." if best else "Сравнение моделей закончилось."
+            text = tr("Сравнение моделей готово. Лучшая: {best}.", best=best) if best else tr("Сравнение моделей закончилось.")
             out.append((f"bench:{self.bench['finished']}", self.bench.get("error") or text))
         return out
 
@@ -476,9 +477,9 @@ class Controller:
 
     def download_dataset(self, name: str) -> None:
         if name not in testset.DOWNLOADABLE:
-            raise ValueError(f"набора {name} нет")
+            raise ValueError(tr("набора {name} нет", name=name))
         if self.dataset_jobs.get(name, {}).get("running"):
-            raise ValueError("уже скачивается")
+            raise ValueError(tr("уже скачивается"))
         job = {"running": True, "done": 0, "total": 0}
         self.dataset_jobs[name] = job
 

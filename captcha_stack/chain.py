@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .layers import Layer, Result, Unavailable, Unsolvable
+from .i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -109,17 +110,17 @@ class Chain:
 
     def _skip_reason(self, layer: Layer, kind: str, key: str) -> str:
         if not layer.available():
-            return "нет ключа"
+            return tr("нет ключа")
         if layer.name in self.state.rejected.get(key, ()):
-            return "его ответ на эту картинку уже отвергли"
+            return tr("его ответ на эту картинку уже отвергли")
         if self.state.unreliable(kind, layer.name):
-            return "пропущен: большинство его ответов на такие капчи отвергли"
+            return tr("пропущен: большинство его ответов на такие капчи отвергли")
         limit = self.daily_limits.get(layer.name, 0)
         if limit and self.state.spent_today(layer.name) >= limit:
-            return f"исчерпан дневной лимит {limit:g}"
+            return tr("исчерпан дневной лимит {limit}", limit=f"{limit:g}")
         cloud = self.daily_limits.get("cloud", 0)
         if cloud and layer.name.startswith("vlm:") and self.state.spent_today_prefix("vlm:") >= cloud:
-            return f"исчерпан общий дневной лимит облачных моделей ${cloud:g}"
+            return tr("исчерпан общий дневной лимит облачных моделей ${limit}", limit=f"{cloud:g}")
         return ""
 
     async def solve(self, task: dict[str, Any]) -> Result:
@@ -132,7 +133,7 @@ class Chain:
                 continue
             reason = self._skip_reason(layer, kind, key)
             if not reason and layer.upstream and layer.upstream in silent:
-                reason = "тот же сервис только что не ответил"
+                reason = tr("тот же сервис только что не ответил")
             if reason:
                 notes.append(f"{layer.title or layer.name}: {reason}")
                 continue
@@ -155,14 +156,14 @@ class Chain:
             if twin:
                 r.meta["agreed_with"] = twin.layer
                 return r
-            notes.append(f"{layer.title or layer.name}: не уверен ({r.confidence:.2f})")
+            notes.append(f"{layer.title or layer.name}: " + tr("не уверен ({confidence})", confidence=f"{r.confidence:.2f}"))
             candidates.append(r)
         if candidates:
             best = max(candidates, key=lambda c: c.confidence)
             best.meta["low_confidence"] = True
             best.meta["tried"] = notes
             return best
-        raise Unsolvable("; ".join(notes) or f"ни один слой не умеет {task['type']}")
+        raise Unsolvable("; ".join(notes) or tr("ни один слой не умеет {type}", type=task["type"]))
 
     async def report_incorrect(self, task: dict[str, Any], result: Result) -> None:
         self.state.bad(kind_of(task), result.layer, image_key(task))

@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from . import config
+from .i18n import tr
 
 
 class NotRunning(Exception):
@@ -24,7 +25,7 @@ def locate() -> tuple[str, str]:
         address = info["address"]
         os.kill(int(info["pid"]), 0)
     except (OSError, ValueError, KeyError) as e:
-        raise NotRunning("«Я не робот» не запущено — откройте программу из «Программ»") from e
+        raise NotRunning(tr("«Я не робот» не запущено — откройте программу из «Программ»")) from e
     cfg = json.loads((Path(config.APP_DIR) / "config.json").read_text())
     key = cfg.get("client_key", "") if cfg.get("require_client_key", True) else ""
     return address, key
@@ -58,7 +59,7 @@ class Client:
             if r.get("errorId"):
                 raise RuntimeError(r.get("errorDescription") or r.get("errorCode"))
             time.sleep(0.5)
-        raise RuntimeError(f"нет ответа за {timeout:.0f} с")
+        raise RuntimeError(tr("нет ответа за {seconds} с", seconds=f"{timeout:.0f}"))
 
     def report_wrong(self, task_id: int, retry: bool = False) -> dict[str, Any]:
         return self._post("reportIncorrect", {"taskId": task_id, "retry": retry})

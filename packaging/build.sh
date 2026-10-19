@@ -1,12 +1,12 @@
 #!/bin/sh
-# Builds "Я не робот.app" into dist/ and copies it to ~/Applications (older copies go to the Trash).
+# Builds "ImNotARobot.app" (shown as «Я не робот» on a Russian Mac) into dist/ and copies it to ~/Applications (older copies go to the Trash).
 set -e
 cd "$(dirname "$0")"
-APP="Я не робот.app"
+APP="ImNotARobot.app"
 ../.venv/bin/pyinstaller --noconfirm --distpath ../dist --workpath ../build CaptchaStack.spec
-"../dist/$APP/Contents/MacOS/YaNeRobot" --selftest
+"../dist/$APP/Contents/MacOS/ImNotARobot" --selftest
 mkdir -p "$HOME/Applications"
-for old in "$HOME/Applications/$APP" "$HOME/Applications/Captcha Stack.app"; do
+for old in "$HOME/Applications/$APP" "$HOME/Applications/Я не робот.app" "$HOME/Applications/Captcha Stack.app"; do
   if [ -e "$old" ]; then trash "$old"; fi
 done
 ditto "../dist/$APP" "$HOME/Applications/$APP"

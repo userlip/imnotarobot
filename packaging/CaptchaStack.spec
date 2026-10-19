@@ -13,11 +13,13 @@ hiddenimports += collect_submodules("mcp", filter=lambda name: not name.startswi
 datas += collect_data_files("mcp")
 datas += collect_data_files("captcha_stack")
 
+datas += [("en.lproj/InfoPlist.strings", "en.lproj"), ("ru.lproj/InfoPlist.strings", "ru.lproj")]
 a = Analysis(["app_main.py"], pathex=[".."], datas=datas, binaries=binaries, hiddenimports=hiddenimports,
              excludes=["tkinter", "matplotlib", "pytest"])
 pyz = PYZ(a.pure)
-exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="YaNeRobot", console=False, argv_emulation=False)
-coll = COLLECT(exe, a.binaries, a.datas, name="YaNeRobot")
-app = BUNDLE(coll, name="Я не робот.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
-             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.3.0", "CFBundleDisplayName": "Я не робот", "CFBundleName": "Я не робот",
+exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="ImNotARobot", console=False, argv_emulation=False)
+coll = COLLECT(exe, a.binaries, a.datas, name="ImNotARobot")
+app = BUNDLE(coll, name="ImNotARobot.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
+             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.3.0", "CFBundleDisplayName": "ImNotARobot", "CFBundleName": "ImNotARobot", "LSHasLocalizedDisplayName": True,
+                         "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "ru"],
                          "NSHumanReadableCopyright": "ziganshin"})

@@ -1,3 +1,8 @@
+import os
+
+# tests check the Russian wording; the app itself follows the system language
+os.environ["IMNOTAROBOT_LANG"] = "ru"
+
 import pytest
 
 

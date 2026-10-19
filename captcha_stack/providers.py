@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
+from .i18n import tr
 
 # protocol: "openai" = POST {base}/chat/completions; "anthropic" = POST {base}/messages
 PRESETS: dict[str, dict[str, Any]] = {
@@ -139,8 +140,8 @@ async def ask(spec: ModelSpec, images: list[bytes], prompt: str,
 
 def _json_or_raise(r: httpx.Response) -> dict[str, Any]:
     if r.status_code != 200:
-        raise ProviderError(f"сервис ответил HTTP {r.status_code}: {r.text[:200]}")
+        raise ProviderError(tr("сервис ответил HTTP {status}: {text}", status=r.status_code, text=r.text[:200]))
     try:
         return r.json()
     except ValueError as e:
-        raise ProviderError(f"сервис ответил не JSON: {r.text[:200]}") from e
+        raise ProviderError(tr("сервис ответил не JSON: {text}", text=r.text[:200])) from e

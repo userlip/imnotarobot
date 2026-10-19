@@ -6,6 +6,7 @@ from typing import Any
 
 from .. import imaging
 from .base import Layer, Result, Unsolvable, decode_image, text_fits
+from ..i18n import tr
 
 # below this correlation peak the gap match is treated as a guess
 NCC_TRUSTED = 0.8
@@ -15,7 +16,7 @@ class LocalLayer(Layer):
     """Models on this machine: ddddocr for text captchas, correlation matching for slider gaps."""
 
     name = "local"
-    title = "Локальная модель"
+    title = tr("Локальная модель")
     task_types = frozenset({"ImageToTextTask", "SlideMatchTask"})
 
     def __init__(self, min_confidence: float = 0.9):
@@ -43,7 +44,7 @@ class LocalLayer(Layer):
             r = self._ocr.classification(decode_image(task["body"]), probability=True)
             text = r["text"] if task.get("case") else r["text"].lower()
             if not text_fits(text, task):
-                raise Unsolvable(f"ответ {text!r} не подходит под условия задачи")
+                raise Unsolvable(tr("ответ {text} не подходит под условия задачи", text=repr(text)))
             return Result({"text": text}, float(r["confidence"]), self.name)
         piece_bytes, bg_bytes = decode_image(task["target"]), decode_image(task["background"])
         piece, background = imaging.load(piece_bytes), imaging.load(bg_bytes)

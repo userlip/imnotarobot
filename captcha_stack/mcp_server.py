@@ -8,6 +8,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from .client import Client, NotRunning, image_b64
+from .i18n import tr
 
 server = MCPServer(
     name="captcha-stack",
@@ -40,7 +41,7 @@ def explained(fn):
         except ToolError:
             raise
         except Exception as e:
-            raise ToolError(f"не получилось: {e}") from e
+            raise ToolError(tr("не получилось: {error}", error=e)) from e
     return wrapper
 
 

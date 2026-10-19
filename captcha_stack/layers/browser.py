@@ -17,6 +17,7 @@ from typing import Any, Awaitable, Callable
 from PIL import Image
 
 from .base import Layer, Result, Unavailable, Unsolvable
+from ..i18n import tr
 
 log = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ Solver = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 def widget_page(kind: str, task: dict[str, Any]) -> str:
     key = html.escape(str(task.get("websiteKey") or ""), quote=True)
     if not key:
-        raise Unsolvable("не указан websiteKey")
+        raise Unsolvable(tr("не указан websiteKey"))
     if kind == "recaptcha":
         invisible = bool(task.get("isInvisible"))
         extra = ' data-size="invisible"' if invisible else ""
@@ -88,7 +89,7 @@ def proxy_of(task: dict[str, Any]) -> dict[str, str] | None:
 
 class BrowserLayer(Layer):
     name = "browser"
-    title = "Браузер"
+    title = tr("Браузер")
     task_types = frozenset(KINDS)
 
     def __init__(self, models: Solver | None, timeout: float = 150.0, rounds: int = 8, parallel: int = 2):
@@ -105,12 +106,12 @@ class BrowserLayer(Layer):
         kind = KINDS[task["type"]]
         url = str(task.get("websiteURL") or "").split("#")[0]
         if not url.startswith("http"):
-            raise Unsolvable("не указан websiteURL")
+            raise Unsolvable(tr("не указан websiteURL"))
         page_html = widget_page(kind, task)
         try:
             from patchright.async_api import async_playwright
         except ImportError as e:
-            raise Unavailable("в сборке нет браузерного модуля") from e
+            raise Unavailable(tr("в сборке нет браузерного модуля")) from e
         async with self._slots:
             try:
                 async with async_playwright() as pw:
@@ -126,11 +127,11 @@ class BrowserLayer(Layer):
                     finally:
                         await browser.close()
             except asyncio.TimeoutError:
-                raise Unsolvable(f"браузер не получил ответ за {self.timeout:.0f} с") from None
+                raise Unsolvable(tr("браузер не получил ответ за {seconds} с", seconds=f"{self.timeout:.0f}")) from None
             except Unsolvable:
                 raise
             except Exception as e:
-                raise Unsolvable(f"браузер: {str(e).splitlines()[0][:200]}") from e
+                raise Unsolvable(tr("браузер: {error}", error=str(e).splitlines()[0][:200])) from e
         solution = {"token": token, "userAgent": agent}
         if kind != "turnstile":
             solution["gRecaptchaResponse"] = token
@@ -174,7 +175,7 @@ class BrowserLayer(Layer):
                         log.info("turnstile: no checkbox to click")
                 continue
             if rounds >= self.rounds:
-                raise Unsolvable(f"не прошёл за {self.rounds} заданий с картинками")
+                raise Unsolvable(tr("не прошёл за {rounds} заданий с картинками", rounds=self.rounds))
             if kind == "recaptcha" and await self._recaptcha_round(page):
                 rounds += 1
             elif kind == "hcaptcha" and await self._hcaptcha_round(page):
@@ -182,7 +183,7 @@ class BrowserLayer(Layer):
 
     async def _ask(self, image: bytes, comment: str, rows: int, columns: int) -> list[int]:
         if self.models is None:
-            raise Unsolvable("нет моделей для картинок")
+            raise Unsolvable(tr("нет моделей для картинок"))
         task = {"type": "GridTask", "body": base64.b64encode(image).decode(), "comment": comment,
                 "rows": rows, "columns": columns, "canNoAnswer": True}
         return list((await self.models(task)).get("click") or [])
@@ -194,7 +195,7 @@ class BrowserLayer(Layer):
             return False
         bf = page.frame_locator('iframe[src*="/bframe"]')
         if await bf.locator(".rc-doscaptcha-header").count():
-            raise Unsolvable("Google считает запросы автоматическими и не показывает задание")
+            raise Unsolvable(tr("Google считает запросы автоматическими и не показывает задание"))
         table = bf.locator("#rc-imageselect-target table")
         if not await table.count():
             return False
@@ -257,7 +258,7 @@ class BrowserLayer(Layer):
             hint = f"{comment}. {family} Give exactly two targets."
         task = {"type": "CoordinatesTask", "body": base64.b64encode(shot).decode(), "comment": hint}
         if self.models is None:
-            raise Unsolvable("нет моделей для картинок")
+            raise Unsolvable(tr("нет моделей для картинок"))
         points = (await self.models(task)).get("coordinates") or []
         # the screenshot may be at device scale; convert back to CSS pixels
         k = box["width"] / Image.open(io.BytesIO(shot)).width
@@ -265,7 +266,7 @@ class BrowserLayer(Layer):
         log.info("hcaptcha canvas: %s -> %s", comment, points)
         if drag:
             if len(xy) < 2:
-                raise Unsolvable("модель не указала, что и куда тащить")
+                raise Unsolvable(tr("модель не указала, что и куда тащить"))
             await drag_like_a_hand(page, xy[0], xy[-1])
         else:
             for x, y in xy:
@@ -305,4 +306,4 @@ async def ask_models(layers: list[Layer], task: dict[str, Any]) -> dict[str, Any
             errors.append(str(e))
         except Exception as e:
             errors.append(str(e))
-    raise Unsolvable("; ".join(errors) or "нет моделей для картинок")
+    raise Unsolvable("; ".join(errors) or tr("нет моделей для картинок"))

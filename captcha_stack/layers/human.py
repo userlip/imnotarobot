@@ -5,8 +5,9 @@ from typing import Any
 import httpx
 
 from .base import Layer, Result, Unsolvable
+from ..i18n import tr
 
-ERROR_TEXT = {
+ERROR_TEXT = {code: tr(text) for code, text in {
     "ERROR_KEY_DOES_NOT_EXIST": "ключ не подходит",
     "ERROR_WRONG_USER_KEY": "ключ не подходит",
     "ERROR_ZERO_BALANCE": "на балансе нет денег",
@@ -21,7 +22,7 @@ ERROR_TEXT = {
     "ERROR_TASK_NOT_SUPPORTED": "сервис не решает такой вид капчи",
     "ERROR_BAD_PARAMETERS": "сервису не хватило данных о капче",
     "ERROR_PAGEURL": "не указан адрес страницы с капчей",
-}
+}.items()}
 
 # Token captchas (reCAPTCHA, hCaptcha, Turnstile…) are only solvable here, so any task type is forwarded as is.
 LOCAL_ONLY_TYPES = frozenset({"SlideMatchTask"})
@@ -31,7 +32,7 @@ class HumanLayer(Layer):
     """2Captcha / RuCaptcha API v2: workers plus their own AI, the last resort."""
 
     name = "human"
-    title = "Люди"
+    title = tr("Люди")
 
     def __init__(self, base_url: str, api_key: str, timeout: float = 180.0, poll_interval: float = 5.0,
                  transport: httpx.AsyncBaseTransport | None = None):
@@ -52,7 +53,7 @@ class HumanLayer(Layer):
         j = r.json()
         if j.get("errorId"):
             code = j.get("errorCode") or ""
-            raise Unsolvable(f"{ERROR_TEXT.get(code, j.get('errorDescription') or 'ошибка сервиса')} ({code})")
+            raise Unsolvable(f"{ERROR_TEXT.get(code, j.get('errorDescription') or tr('ошибка сервиса'))} ({code})")
         return j
 
     async def solve(self, task: dict[str, Any]) -> Result:
@@ -66,7 +67,7 @@ class HumanLayer(Layer):
                 if j.get("status") == "ready":
                     return Result(j["solution"], 1.0, self.name, cost=float(j.get("cost") or 0),
                                   meta={"remote_task_id": task_id})
-        raise Unsolvable(f"нет ответа от {self.base_url} за {self.timeout:.0f} с")
+        raise Unsolvable(tr("нет ответа от {url} за {seconds} с", url=self.base_url, seconds=f"{self.timeout:.0f}"))
 
     async def report_incorrect(self, result: Result) -> None:
         task_id = result.meta.get("remote_task_id")

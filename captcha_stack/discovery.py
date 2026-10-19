@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from .providers import PRESETS
+from .i18n import tr
 
 # prefixes are a hint only; every guess is confirmed by an authenticated request
 PREFIX_HINTS = [("sk-ant-", "anthropic"), ("AIza", "gemini"), ("sk-or-", "openrouter"), ("xai-", "xai"), ("gsk_", "groq")]
@@ -132,7 +133,7 @@ async def _try_reseller(client: httpx.AsyncClient, key: str, base: str) -> Detec
     return None
 
 
-PROVIDER_TITLES = {"openai": "OpenAI", "dashscope": "DashScope (Китай)", "dashscope-intl": "DashScope", "mistral": "Mistral",
+PROVIDER_TITLES = {"openai": "OpenAI", "dashscope": tr("DashScope (Китай)"), "dashscope-intl": "DashScope", "mistral": "Mistral",
                    "openrouter": "OpenRouter", "xai": "xAI", "groq": "Groq", "anthropic": "Anthropic", "gemini": "Google Gemini"}
 
 
@@ -148,16 +149,16 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
                 return found
             r = await client.get(f"{base}/models", headers={"Authorization": f"Bearer {key}"})
             if r.status_code in (401, 403):
-                raise DetectError(f"{base} не принял ключ (HTTP {r.status_code})")
+                raise DetectError(tr("{base} не принял ключ (HTTP {status})", base=base, status=r.status_code))
             probe = await client.post(f"{base}/chat/completions", headers={"Authorization": f"Bearer {key}"}, json={})
             if probe.status_code in (401, 403):
-                raise DetectError(f"{base} не принял ключ (HTTP {probe.status_code})")
+                raise DetectError(tr("{base} не принял ключ (HTTP {status})", base=base, status=probe.status_code))
             return Detected("custom", base, [], listable=False)
         hinted = [p for prefix, p in PREFIX_HINTS if key.startswith(prefix)]
         order = hinted + [p for p in PROBE_ORDER if p not in hinted]
         for provider in order:
             if progress:
-                progress(f"проверяю {PROVIDER_TITLES.get(provider, provider)}")
+                progress(tr("проверяю {name}", name=PROVIDER_TITLES.get(provider, provider)))
             try:
                 found = await _try(client, provider, key, "")
             except httpx.HTTPError:
@@ -166,14 +167,14 @@ async def detect(key: str, base_url: str = "", transport: httpx.AsyncBaseTranspo
                 return found
         for base in (local_reseller_urls() if resellers is None else resellers):
             if progress:
-                progress(f"проверяю посредника {base.split('/')[2]}")
+                progress(tr("проверяю посредника {host}", host=base.split("/")[2]))
             try:
                 found = await _try_reseller(client, key, base)
             except httpx.HTTPError:
                 continue
             if found:
                 return found
-    raise DetectError("ни один известный поставщик не принял этот ключ; если это посредник — укажите его адрес")
+    raise DetectError(tr("ни один известный поставщик не принял этот ключ; если это посредник — укажите его адрес"))
 
 
 def detect_sync(key: str, base_url: str = "", progress=None) -> Detected:

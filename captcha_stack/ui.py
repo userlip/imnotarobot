@@ -17,6 +17,8 @@ from .control import HUMAN_TITLES, LAYER_TITLES, money
 from .layers.browser import BrowserLayer
 from .layers.vlm import LAST_ERRORS
 from .providers import NO_EFFORT
+from . import i18n
+from .i18n import tr
 
 if TYPE_CHECKING:
     from .control import Controller
@@ -24,21 +26,21 @@ if TYPE_CHECKING:
 PAGE = Path(__file__).with_name("assets") / "ui.html"
 
 TYPE_TITLES = {
-    "ImageToTextTask": "Текст на картинке", "GridTask": "Сетка картинок", "CoordinatesTask": "Клик по картинке",
-    "SlideMatchTask": "Слайдер", "RotateTask": "Поворот", "RecaptchaV2TaskProxyless": "reCAPTCHA v2",
+    "ImageToTextTask": tr("Текст на картинке"), "GridTask": tr("Сетка картинок"), "CoordinatesTask": tr("Клик по картинке"),
+    "SlideMatchTask": tr("Слайдер"), "RotateTask": tr("Поворот"), "RecaptchaV2TaskProxyless": "reCAPTCHA v2",
     "RecaptchaV2Task": "reCAPTCHA v2", "RecaptchaV3TaskProxyless": "reCAPTCHA v3", "HCaptchaTaskProxyless": "hCaptcha",
     "HCaptchaTask": "hCaptcha", "TurnstileTaskProxyless": "Cloudflare Turnstile", "TurnstileTask": "Cloudflare Turnstile",
     "GeeTestTaskProxyless": "GeeTest", "FunCaptchaTaskProxyless": "FunCaptcha",
 }
 
 
-LAYER_CAN = {"local": "текст на картинке, слайдеры · бесплатно, доли секунды",
-             "human": "всё, включая reCAPTCHA, hCaptcha, Turnstile · платно, 10–60 секунд",
-             "vlm": "текст, сетки картинок, клики · центы, 5–30 секунд",
-             "browser": "жмёт галочку, картинки отдаёт моделям выше · бесплатно, 10–60 секунд"}
+LAYER_CAN = {"local": tr("текст на картинке, слайдеры · бесплатно, доли секунды"),
+             "human": tr("всё, включая reCAPTCHA, hCaptcha, Turnstile · платно, 10–60 секунд"),
+             "vlm": tr("текст, сетки картинок, клики · центы, 5–30 секунд"),
+             "browser": tr("жмёт галочку, картинки отдаёт моделям выше · бесплатно, 10–60 секунд")}
 
 
-EFFORT_TITLES = {"default": "как у поставщика", "none": "нет", "low": "мало", "medium": "средне", "high": "много"}
+EFFORT_TITLES = {k: tr(v) for k, v in {"default": "как у поставщика", "none": "нет", "low": "мало", "medium": "средне", "high": "много"}.items()}
 
 
 def type_title(task_type: str) -> str:
@@ -72,13 +74,13 @@ def state(c: "Controller") -> dict[str, Any]:
         elif layer_id == "browser":
             title = LAYER_TITLES["browser"]
             ready = BrowserLayer(None).available()
-            why = "" if ready else "нужен Google Chrome"
+            why = "" if ready else tr("нужен Google Chrome")
         elif layer_id == "human":
-            title = f"Люди ({HUMAN_TITLES.get(cfg.human_provider, cfg.human_provider)})"
-            ready, why = bool(cfg.human_api_key), "" if cfg.human_api_key else "нет ключа"
+            title = tr("Люди ({name})", name=HUMAN_TITLES.get(cfg.human_provider, cfg.human_provider))
+            ready, why = bool(cfg.human_api_key), "" if cfg.human_api_key else tr("нет ключа")
         elif layer_id in known:
             m = known[layer_id]
-            title, ready, why = f"{m.model} · {m.key or m.provider}", m.ready(), "" if m.ready() else "нет ключа"
+            title, ready, why = f"{m.model} · {m.key or m.provider}", m.ready(), "" if m.ready() else tr("нет ключа")
         else:
             continue
         can = LAYER_CAN["vlm" if layer_id.startswith("vlm:") else layer_id]
@@ -110,13 +112,14 @@ def state(c: "Controller") -> dict[str, Any]:
         "modelTests": c.model_tests,
         "benchCases": len(c.bench_cases()),
         "now": time.time(),
+        "lang": i18n.LANG,
     }
 
 
 def add_ui_routes(app: FastAPI, c: "Controller") -> None:
     def guard(request: Request) -> JSONResponse | None:
         if request.headers.get("x-ui-token") != c.ui_token:
-            return JSONResponse({"ok": False, "error": "нет доступа"}, status_code=403)
+            return JSONResponse({"ok": False, "error": tr("нет доступа")}, status_code=403)
         return None
 
     async def body(request: Request) -> dict[str, Any]:
@@ -146,7 +149,7 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
             return denied
         entry = c.service.journal_entry(entry_id)
         if entry is None:
-            return JSONResponse({"ok": False, "error": "запись не найдена"}, status_code=404)
+            return JSONResponse({"ok": False, "error": tr("запись не найдена")}, status_code=404)
         task = entry["task"]
         images = {k: task[k] for k in ("body", "target", "background", "imgInstructions") if task.get(k)}
         details = {k: v for k, v in task.items() if k not in images}
@@ -170,60 +173,60 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
         if action in ("open-window", "quit"):
             hook = c.hooks.get(action)
             if hook is None:
-                raise ValueError("это доступно только в приложении")
+                raise ValueError(tr("это доступно только в приложении"))
             hook(b.get("view") or "")
             return done("")
         if action == "add-key":
             entry = await run_in_threadpool(c.add_key, b.get("secret", ""), b.get("baseUrl", ""))
             n = len(c.key_models(entry.name))
-            where = "посредник" if entry.provider == "custom" else "поставщик"
-            hint = f"моделей с картинками: {n}" if entry.listable else "список моделей недоступен — впишите модель вручную"
-            return done(f"Ключ добавлен: {where} {entry.name}, {hint}.", key=entry.name)
+            where = tr("посредник") if entry.provider == "custom" else tr("поставщик")
+            hint = tr("моделей с картинками: {n}", n=n) if entry.listable else tr("список моделей недоступен — впишите модель вручную")
+            return done(tr("Ключ добавлен: {where} {name}, {hint}.", where=where, name=entry.name, hint=hint), key=entry.name)
         if action == "refresh-key":
             entry = await run_in_threadpool(c.refresh_key, b["name"])
-            return done(f"Список моделей {entry.name} обновлён: {len(c.key_models(entry.name))} с картинками.")
+            return done(tr("Список моделей {name} обновлён: {n} с картинками.", name=entry.name, n=len(c.key_models(entry.name))))
         if action == "remove-key":
             c.remove_key(b["name"])
-            return done(f"Ключ {b['name']} удалён вместе с его моделями.")
+            return done(tr("Ключ {name} удалён вместе с его моделями.", name=b["name"]))
         if action == "toggle-model":
             c.toggle_key_model(b["key"], b["model"])
             on = any(m.key == b["key"] and m.model == b["model"] for m in c.cfg.models)
-            return done(f"{b['model']}: {'включена' if on else 'выключена'}.")
+            return done(tr("{model}: включена." if on else "{model}: выключена.", model=b["model"]))
         if action == "manual-model":
             entry = c.key(b["key"])
             model = b.get("model", "").strip()
             if not model:
-                raise ValueError("впишите название модели")
+                raise ValueError(tr("впишите название модели"))
             if not any(mid == model for mid, *_ in entry.models):
                 entry.models.append([model, True, 0.0, 0.0])
             c.toggle_key_model(b["key"], model)
-            return done(f"{model} добавлена и включена.")
+            return done(tr("{model} добавлена и включена.", model=model))
         if action == "toggle-layer":
             c.toggle_layer(b["id"])
-            return done("Слои обновлены.")
+            return done(tr("Слои обновлены."))
         if action == "move-layer":
             c.move_layer(b["id"], int(b.get("step", 0)))
-            return done("Порядок обновлён.")
+            return done(tr("Порядок обновлён."))
         cur = HUMAN_CURRENCY.get(c.cfg.human_provider, "$")
         if action == "human-key":
             key = str(b.get("key") or "").strip()
             if not key:
-                raise ValueError("вставьте ключ")
+                raise ValueError(tr("вставьте ключ"))
             c.set_human(key=key)
             st = await run_in_threadpool(c.check_human)
             if not st["ok"]:
-                return JSONResponse({"ok": False, "error": f"ключ сохранён, но {c.cfg.human_provider} его не принял: {st['error']}",
+                return JSONResponse({"ok": False, "error": tr("ключ сохранён, но {service} его не принял: {error}", service=c.cfg.human_provider, error=st["error"]),
                                      "state": state(c)}, status_code=400)
-            return done(f"Ключ работает, баланс {money(st['balance'], HUMAN_CURRENCY.get(c.cfg.human_provider, '$'))}.")
+            return done(tr("Ключ работает, баланс {money}.", money=money(st["balance"], HUMAN_CURRENCY.get(c.cfg.human_provider, "$"))))
         if action == "human-remove-key":
             c.set_human(key="")
-            return done("Ключ людей удалён, слой людей выключен.")
+            return done(tr("Ключ людей удалён, слой людей выключен."))
         if action == "human-provider":
             c.set_human(provider=b["provider"])
-            msg = f"Сервис: {HUMAN_TITLES.get(c.cfg.human_provider)}. Валюта: {HUMAN_CURRENCY.get(c.cfg.human_provider)}."
+            msg = tr("Сервис: {service}. Валюта: {currency}.", service=HUMAN_TITLES.get(c.cfg.human_provider), currency=HUMAN_CURRENCY.get(c.cfg.human_provider))
             if c.cfg.human_api_key:
                 st = await run_in_threadpool(c.check_human)
-                msg += " Ключ подходит." if st["ok"] else " Этот ключ к нему не подходит — вставьте ключ этого сервиса."
+                msg += tr(" Ключ подходит.") if st["ok"] else tr(" Этот ключ к нему не подходит — вставьте ключ этого сервиса.")
             return done(msg)
         if action == "limits":
             def number(name: str) -> float | None:
@@ -233,9 +236,9 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
                 try:
                     v = float(str(v).replace(",", "."))
                 except ValueError:
-                    raise ValueError("нужно число")
+                    raise ValueError(tr("нужно число"))
                 if v < 0:
-                    raise ValueError("число не может быть отрицательным")
+                    raise ValueError(tr("число не может быть отрицательным"))
                 return v
 
             human, low, cloud = number("human"), number("low"), number("cloud")
@@ -247,82 +250,85 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
                 c.cfg.cloud_daily_limit_usd = cloud
             c._apply()
             h = c.cfg.human_daily_limit
-            parts = [f"люди — {'без лимита' if not h else money(h, HUMAN_CURRENCY.get(c.cfg.human_provider, '$')) + ' в день'}",
-                     f"модели — {'без лимита' if not c.cfg.cloud_daily_limit_usd else money(c.cfg.cloud_daily_limit_usd, '$') + ' в день'}"]
-            return done("Лимиты сохранены: " + ", ".join(parts) + ".")
+            def per_day(v, cur):
+                return tr("без лимита") if not v else tr("{money} в день", money=money(v, cur))
+
+            parts = [tr("люди — {value}", value=per_day(h, HUMAN_CURRENCY.get(c.cfg.human_provider, "$"))),
+                     tr("модели — {value}", value=per_day(c.cfg.cloud_daily_limit_usd, "$"))]
+            return done(tr("Лимиты сохранены: {parts}.", parts=", ".join(parts)))
         if action == "check-human":
             st = await run_in_threadpool(c.check_human)
             if not st["ok"]:
                 return JSONResponse({"ok": False, "error": st["error"], "state": state(c)}, status_code=400)
-            return done(f"Баланс {money(st['balance'], cur)}.")
+            return done(tr("Баланс {money}.", money=money(st["balance"], cur)))
         if action == "pause":
             c.set_paused(bool(b.get("paused")))
-            return done("Решатель на паузе." if c.service.paused else "Решатель работает.")
+            return done(tr("Решатель на паузе.") if c.service.paused else tr("Решатель работает."))
         if action == "login":
             c.set_start_at_login(bool(b.get("on")))
-            return done("Будет запускаться при входе." if c.starts_at_login() else "Автозапуск выключен.")
+            return done(tr("Будет запускаться при входе.") if c.starts_at_login() else tr("Автозапуск выключен."))
         if action == "bench-estimate":
             specs = c.bench_specs(b.get("key"))
             runs, usd = c.bench_estimate(specs)
             return done("", models=len(specs), runs=runs, usd=usd)
         if action == "bench-start":
             c.start_bench(b.get("key"))
-            return done("Сравнение запущено.")
+            return done(tr("Сравнение запущено."))
         if action == "report-wrong":
             try:
                 await c.service.report_entry(int(b["id"]))
             except KeyError:
-                raise ValueError("у этой капчи нет ответа, сообщать нечего")
-            return done("Записал: этот слой на такой картинке больше не используется. Если решали люди — сервису отправлена жалоба.")
+                raise ValueError(tr("у этой капчи нет ответа, сообщать нечего"))
+            return done(tr("Записал: этот слой на такой картинке больше не используется. Если решали люди — сервису отправлена жалоба."))
         if action == "copy-key":
             import subprocess
 
             subprocess.run(["pbcopy"], input=c.cfg.client_key.encode(), check=False)
-            return done("Ключ доступа скопирован.")
+            return done(tr("Ключ доступа скопирован."))
         if action == "copy-address":
             import subprocess
 
             subprocess.run(["pbcopy"], input=c.address.encode(), check=False)
-            return done(f"Адрес {c.address} скопирован.")
+            return done(tr("Адрес {address} скопирован.", address=c.address))
         if action == "access":
             c.set_access(b.get("required"), bool(b.get("regenerate")))
             if b.get("regenerate"):
-                return done("Новый ключ доступа создан. Старый больше не работает — обновите его в своих программах.")
-            return done("Программы должны присылать ключ доступа." if c.cfg.require_client_key
-                        else "Ключ доступа выключен: решатель примет запрос от любой программы на этом Маке.")
+                return done(tr("Новый ключ доступа создан. Старый больше не работает — обновите его в своих программах."))
+            return done(tr("Программы должны присылать ключ доступа.") if c.cfg.require_client_key
+                        else tr("Ключ доступа выключен: решатель примет запрос от любой программы на этом Маке."))
         if action == "check-connection":
             r = await run_in_threadpool(c.check_connection)
             if not r["ok"]:
-                return JSONResponse({"ok": False, "error": f"программа получила бы ошибку: {r['error']}", "state": state(c)},
+                return JSONResponse({"ok": False, "error": tr("программа получила бы ошибку: {error}", error=r["error"]), "state": state(c)},
                                     status_code=400)
-            verdict = "ответ верный" if r["correct"] else "ответ неверный"
-            return done(f"Подключение работает: тестовую капчу решил слой «{r['layer']}» за {r['seconds']} с, {verdict}.")
+            verdict = tr("ответ верный") if r["correct"] else tr("ответ неверный")
+            return done(tr("Подключение работает: тестовую капчу решил слой «{layer}» за {seconds} с, {verdict}.", layer=r["layer"], seconds=r["seconds"], verdict=verdict))
         if action == "test-model":
             r = await run_in_threadpool(c.test_model, b["key"], b["model"])
             if r["error"] and not r["ok"]:
                 return JSONResponse({"ok": False, "error": f"{b['model']}: {r['error']}", "state": state(c)}, status_code=400)
-            return done(f"{b['model']}: решено {r['ok']} из {r['n']}, в среднем {r['seconds']} с на капчу.")
+            return done(tr("{model}: решено {ok} из {n}, в среднем {seconds} с на капчу.", model=b["model"], ok=r["ok"], n=r["n"], seconds=r["seconds"]))
         if action == "set-effort":
             c.set_effort(b["key"], b["model"], b["kind"], b["level"])
-            what = "распознавания" if b["kind"] == "recognition" else "кликов"
-            return done(f"{b['model']}: раздумья для {what} — {EFFORT_TITLES[b['level']]}.")
+            what = tr("распознавания") if b["kind"] == "recognition" else tr("кликов")
+            return done(tr("{model}: раздумья для {what} — {level}.", model=b["model"], what=what, level=EFFORT_TITLES[b["level"]]))
         if action == "bench-efforts-estimate":
             specs = c.effort_specs(b["key"], b["model"])
             runs, usd = c.bench_estimate(specs)
             return done("", models=len(specs), runs=runs, usd=usd)
         if action == "bench-efforts":
-            c.start_bench(None, c.effort_specs(b["key"], b["model"]), label=f"{b['model']} на разных уровнях раздумий")
-            return done("Сравнение уровней раздумий запущено.")
+            c.start_bench(None, c.effort_specs(b["key"], b["model"]), label=tr("{model} на разных уровнях раздумий", model=b["model"]))
+            return done(tr("Сравнение уровней раздумий запущено."))
         if action == "bench-stop":
             c.stop_bench()
-            return done("Останавливаю: дорешаю начатые капчи и покажу то, что успели.")
+            return done(tr("Останавливаю: дорешаю начатые капчи и покажу то, что успели."))
         if action == "dataset-download":
             c.download_dataset(b["name"])
-            return done("Скачиваю набор — прогресс виден в разделе сравнения.")
+            return done(tr("Скачиваю набор — прогресс виден в разделе сравнения."))
         if action == "dataset-remove":
             c.remove_dataset(b["name"])
-            return done("Набор удалён.")
+            return done(tr("Набор удалён."))
         if action == "use-best":
             c.use_best(b["name"])
-            return done(f"{b['name']} теперь первая среди моделей.")
-        raise ValueError(f"неизвестное действие {action}")
+            return done(tr("{name} теперь первая среди моделей.", name=b["name"]))
+        raise ValueError(tr("неизвестное действие {action}", action=action))

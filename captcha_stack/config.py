@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .providers import ModelSpec
+from .i18n import tr
 
 APP_DIR = Path(os.environ.get("CAPTCHA_STACK_HOME", Path.home() / "Library" / "Application Support" / "captcha-stack"))
 KEYCHAIN_SERVICE = "captcha-stack"
@@ -36,7 +37,7 @@ def set_secret(account: str, value: str) -> None:
         r = subprocess.run([SECURITY, "add-generic-password", "-U", "-s", SECRET_SERVICE, "-a", account,
                             "-l", f"Captcha Stack — {account}", "-w", value], capture_output=True, text=True, check=False)
         if r.returncode != 0:
-            raise RuntimeError(f"Связка ключей не сохранила ключ: {r.stderr.strip()[:120]}")
+            raise RuntimeError(tr("Связка ключей не сохранила ключ: {error}", error=r.stderr.strip()[:120]))
     else:
         subprocess.run([SECURITY, "delete-generic-password", "-s", SECRET_SERVICE, "-a", account],
                        capture_output=True, check=False)

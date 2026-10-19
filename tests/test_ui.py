@@ -209,3 +209,25 @@ def test_panel_asks_the_app_to_open_the_window_or_quit(ui):
     assert client.post("/api/ui/open-window", json={"view": "journal"}).json()["ok"]
     client.post("/api/ui/quit", json={})
     assert calls == [("open", "journal"), ("quit", "")]
+
+
+def test_every_phrase_has_an_english_translation():
+    import re
+    from pathlib import Path
+
+    from captcha_stack.i18n import EN
+
+    used = set()
+    for path in Path("captcha_stack").rglob("*.py"):
+        used |= set(re.findall(r'\btr\(\s*"((?:[^"\\]|\\.)*)"', path.read_text()))
+    used |= {"Текст на картинке", "Локальная модель"}
+    missing = sorted(u for u in used if re.search("[А-Яа-яЁё]", u) and u not in EN)
+    assert not missing
+
+
+def test_english_messages_fill_their_values(monkeypatch):
+    from captcha_stack import i18n
+
+    monkeypatch.setattr(i18n, "LANG", "en")
+    assert i18n.tr("Сегодня: решено {solved} · {spend}", solved=3, spend="models $0.000") == "Today: solved 3 · models $0.000"
+    assert i18n.tr("фраза без перевода") == "фраза без перевода"

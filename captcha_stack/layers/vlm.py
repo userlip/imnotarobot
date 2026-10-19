@@ -22,6 +22,7 @@ import httpx
 from .. import imaging
 from ..providers import ModelSpec, ask
 from .base import Layer, Result, Unavailable, Unsolvable, decode_image, text_fits
+from ..i18n import tr
 
 TEXT_PROMPT = (
     "The image is a captcha. Read its characters exactly as shown, nothing else. {hint}\n"
@@ -82,7 +83,7 @@ def last_json(text: str) -> dict[str, Any]:
                 pass
             start = text.rfind("{", 0, start)
         end = text.rfind("}", 0, end)
-    raise Unsolvable(f"модель ответила не в нужном виде: {text[-150:]!r}")
+    raise Unsolvable(tr("модель ответила не в нужном виде: {text}", text=repr(text[-150:])))
 
 
 # last failure per model layer, kept across rebuilds of the layer list: (unix time, message)
@@ -153,7 +154,7 @@ class VlmLayer(Layer):
             LAST_ERRORS.pop(self.name, None)
         if not answers:
             error = Unavailable if unreachable == asked else Unsolvable
-            raise error("; ".join(dict.fromkeys(errors)) or "нет ответа")
+            raise error("; ".join(dict.fromkeys(errors)) or tr("нет ответа"))
         final, support = _consensus(task["type"], answers, same)
         if disputed and support < len(answers):
             # the two asks split: hand back the one that matches the earlier layer, the chain accepts such a twin
@@ -179,7 +180,7 @@ class VlmLayer(Layer):
             def parse(j):
                 text = str(j.get("text", "")).strip()
                 if not text_fits(text, task):
-                    raise Unsolvable(f"ответ {text!r} не подходит под условия задачи")
+                    raise Unsolvable(tr("ответ {text} не подходит под условия задачи", text=repr(text)))
                 return text
 
             return ([imaging.to_png(big)] + extra, TEXT_PROMPT.format(hint=_text_hint(task)) + note, parse,
@@ -190,7 +191,7 @@ class VlmLayer(Layer):
             def parse(j):
                 tiles = sorted({int(x) for x in j.get("tiles", []) if 1 <= int(x) <= rows * cols})
                 if not tiles and not task.get("canNoAnswer"):
-                    raise Unsolvable("модель не выбрала ни одной клетки")
+                    raise Unsolvable(tr("модель не выбрала ни одной клетки"))
                 return tiles
 
             marked = imaging.grid_marks(big, rows, cols)
@@ -203,7 +204,7 @@ class VlmLayer(Layer):
         def parse(j):
             pts = [(float(x), float(y)) for x, y in j.get("points", []) if 0 <= float(x) <= w and 0 <= float(y) <= h]
             if not pts:
-                raise Unsolvable("модель не указала точек внутри картинки")
+                raise Unsolvable(tr("модель не указала точек внутри картинки"))
             return pts
 
         def same(a, b):
@@ -219,7 +220,7 @@ class VlmLayer(Layer):
                     ymin, xmin, ymax, xmax = (float(v) for v in box)
                     pts.append(((xmin + xmax) / 2 / 1000 * w, (ymin + ymax) / 2 / 1000 * h))
                 if not pts:
-                    raise Unsolvable("модель не обвела ни одной цели")
+                    raise Unsolvable(tr("модель не обвела ни одной цели"))
                 return pts
 
             return ([imaging.to_png(big)] + extra, BOX_PROMPT.format(comment=comment) + note, parse_boxes, same)

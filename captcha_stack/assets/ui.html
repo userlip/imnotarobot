@@ -348,14 +348,123 @@ if (POP) document.body.classList.add("pop");
 let S = null;
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const money = (v, cur) => cur === "₽" ? (v || 0).toFixed(v && v < 10 ? 1 : 0).replace(".", ",") + " ₽" : "$" + (v || 0).toFixed(v && v < 0.1 ? 3 : 2);
+const money = (v, cur) => cur === "₽" ? (v || 0).toFixed(v && v < 10 ? 1 : 0).replace(".", LANG === "en" ? "." : ",") + " ₽" : "$" + (v || 0).toFixed(v && v < 0.1 ? 3 : 2);
 const EFFORTS = {none: "нет", low: "мало", medium: "средне", high: "много", default: "как у поставщика"};
-const ago = t => { const s = Math.round(Date.now() / 1000 - t); return s < 60 ? "только что" : s < 3600 ? Math.round(s / 60) + " мин назад" : new Date(t * 1000).toLocaleString("ru"); };
-const hhmm = t => new Date(t * 1000).toLocaleTimeString("ru", {hour: "2-digit", minute: "2-digit"});
+const ago = at => { const s = Math.round(Date.now() / 1000 - at); return s < 60 ? "только что" : s < 3600 ? Math.round(s / 60) + " мин назад" : new Date(at * 1000).toLocaleString(LOCALE()); };
+const hhmm = at => new Date(at * 1000).toLocaleTimeString(LOCALE(), {hour: "2-digit", minute: "2-digit"});
+
+
+// ---------- language: follows the system, like the theme ----------
+let LANG = "ru";
+const EN = {
+  "Я не робот": "I'm Not a Robot", "Сегодня": "Today", "Путь капчи": "Captcha path", "Ключи и модели": "Keys and models",
+  "Подключение": "Connection", "Журнал": "Journal", "Работает": "Running", "На паузе": "Paused",
+  "Нажмите, чтобы поставить на паузу или продолжить": "Click to pause or resume", "Работает или на паузе": "Running or paused",
+  "решено сегодня": "solved today", "Всё решается само": "Everything solves itself", "Нет ни одной ступени": "No steps are on",
+  "Ждёт капчи": "Waiting for captchas", "Капчи сейчас не принимаются.": "Captchas are not accepted now.",
+  "Сегодня ни разу не понадобились люди.": "Humans were not needed today.",
+  "Когда программа пришлёт капчу, она появится здесь.": "When a program sends a captcha, it shows up here.",
+  "бесплатно": "free", "потрачено": "spent", "в среднем": "on average", "С чего начать": "Getting started",
+  "1. «Ключи и модели»: вставьте ключ облачной модели, поставщик определится сам. 2. По желанию добавьте ключ RuCaptcha. 3. «Подключение»: адрес и ключ для своей программы.":
+    "1. «Keys and models»: paste a cloud model key, the provider is detected by itself. 2. Optionally add a RuCaptcha key. 3. «Connection»: the address and key for your program.",
+  "Последние": "Recent", "Пока ни одной.": "None yet.",
+  "Все ступени выключены — включите их в разделе «Путь капчи».": "All steps are off, turn them on in «Captcha path».",
+  "Капча идёт сверху вниз, пока кто-то не решит. Перетащите строку, чтобы поменять порядок.": "A captcha goes top to bottom until a step solves it. Drag a row to change the order.",
+  "Лимиты на день": "Daily limits", "0 — без лимита. Когда лимит исчерпан, ступень пропускается до конца дня и приходит уведомление.":
+    "0 means no limit. When a limit is used up, the step is skipped until the end of the day and you get a notification.",
+  "Облачные модели, $": "Cloud models, $", "Люди,": "Humans,", "Баланс для предупреждения,": "Warn when the balance is below,", "Сохранить": "Save",
+  "Своя модель": "Local model", "Браузер": "Browser", "текст и слайдеры · мгновенно": "text and sliders · instant",
+  "галочки reCAPTCHA, hCaptcha, Turnstile": "reCAPTCHA, hCaptcha, Turnstile checkboxes", "люди · платно": "humans · paid",
+  "картинки, сетки, клики": "pictures, grids, clicks", "нет ключа": "no key", "нужен Google Chrome": "needs Google Chrome",
+  "Вставьте ключ — поставщик и модели определятся сами. Ключи хранятся в Связке ключей macOS.": "Paste a key: the provider and models are detected by themselves. Keys are kept in the macOS Keychain.",
+  "Ключ API": "API key", "Адрес посредника — если есть": "Reseller address, if any", "Добавить": "Add", "Люди": "Humans",
+  "RuCaptcha · рубли": "RuCaptcha · roubles", "2Captcha · доллары": "2Captcha · dollars", "Новый ключ": "New key", "Сохранить ключ": "Save key",
+  "Проверить баланс": "Check balance", "Пополнить": "Top up", "Удалить ключ": "Remove key", "Сравнение моделей": "Model comparison",
+  "Модели решают капчи с известными ответами, лучшая — сверху. Капч в наборе:": "Models solve captchas with known answers, the best on top. Captchas in the set:",
+  "Наборы настоящих капч": "Sets of real captchas", "Проверить": "Test", "Выключить": "Turn off", "Раздумья: текст и сетки": "Thinking: text and grids",
+  "клики": "clicks", "Сравнить уровни": "Compare levels", "поставщик не принимает эту настройку": "the provider ignores this setting",
+  "не проверена": "not tested", "Отметьте модели ниже — они встанут в путь капчи.": "Tick models below, they join the captcha path.",
+  "Все модели с картинками": "All vision models", "Найти модель": "Find a model", "Список недоступен — впишите название вручную.": "The list is unavailable, enter a name by hand.",
+  "Вписать модель вручную": "Enter a model by hand", "Сравнить все модели ключа": "Compare all models of the key", "Обновить список": "Refresh the list",
+  "введите ключ ещё раз": "enter the key again", "прошлая версия сохранила его так, что новая не может прочитать": "the previous version saved it so that this one cannot read it",
+  "Нет ключа — последняя ступень выключена.": "No key, the last step is off.", "ключ работает": "the key works", "ошибка": "error", "ключ сохранён": "key saved",
+  "баланс": "balance", "— пора пополнить": "— time to top up",
+  "Приложение понимает API 2Captcha и RuCaptcha. В своей программе поменяйте адрес сервиса на этот, а ключ — на ключ доступа.":
+    "The app speaks the 2Captcha and RuCaptcha API. In your program, change the service address to this one and the key to the access key.",
+  "Адрес": "Address", "Скопировать": "Copy", "Ключ доступа": "Access key", "Новый": "New", "Требовать ключ": "Require the key",
+  "Без ключа любая программа на этом Маке сможет тратить ваши деньги.": "Without it, any program on this Mac can spend your money.",
+  "Запускать при входе": "Start at login", "Начинает работать сразу после включения Мака.": "Starts working as soon as the Mac is on.",
+  "Примеры запросов": "Request examples", "Новый API": "New API", "Старый API": "Old API", "Проверить подключение": "Check the connection",
+  "не требуется": "not required", "любой": "any",
+  "Нажмите на строку, чтобы увидеть картинку, ответ и путь по ступеням. Хранятся последние 300.": "Click a row to see the picture, the answer and the path through the steps. The last 300 are kept.",
+  "Все": "All", "Не решённые": "Unsolved", "«Не уверен»": "«Unsure»", "Отмеченные неверными": "Marked wrong", "Статистика": "Statistics",
+  "По дням": "By day", "Кто как решает — по отметкам «ответ неверный»": "Who solves how — by «wrong answer» marks",
+  "Когда": "When", "Вид": "Kind", "Кто решил": "Solved by", "Ответ": "Answer", "Уверенность": "Confidence", "Секунд": "Seconds",
+  "не решена": "unsolved", "не уверен": "unsure", "неверно": "wrong", "Под фильтр ничего не попало.": "Nothing matches the filter.",
+  "Пока ни одной. Когда программа пришлёт капчу, она появится здесь.": "None yet. When a program sends a captcha, it shows up here.",
+  "День": "Day", "Решено": "Solved", "Модели": "Models", "Данных пока нет.": "No data yet.", "Вид капчи": "Captcha kind", "Ступень": "Step",
+  "Ответов": "Answers", "Неверных": "Wrong", "Появится, когда начнут приходить капчи.": "Appears when captchas start coming.",
+  "Модель": "Model", "Точность": "Accuracy", "Время": "Time", "За 1000": "Per 1000", "Сделать первой": "Make it first",
+  "Сравнить включённые модели": "Compare enabled models", "Сначала добавьте ключ облачной модели.": "Add a cloud model key first.",
+  "не удалось": "failed", "Останавливаю": "Stopping", "Идёт сравнение": "Comparing", "Остановить": "Stop", "Удалить": "Remove", "Источник": "Source",
+  "на паузе": "paused", "ждёт капчи": "waiting for captchas", "мгновенно": "instant", "галочки": "checkboxes", "выключена": "off",
+  "Подключение": "Connection", "скопировать адрес": "copy the address", "Скопировать адрес и ключ": "Copy the address and key",
+  "Открыть окно…": "Open window…", "Выйти": "Quit", "Да": "Yes", "Отмена": "Cancel", "Закрыть": "Close",
+  "Капча": "Captcha", "Кусочек": "Piece", "Фон": "Background", "Инструкция": "Instruction",
+  "Картинки нет: такую капчу решают на странице сайта.": "No picture: this kind is solved on the site's page.",
+  "Как его получила программа": "What the program received", "Путь по ступеням": "Path through the steps", "Ответ неверный": "Wrong answer",
+  "Ступень больше не будет решать эту картинку; если решали люди — сервису уйдёт жалоба.": "The step won't solve this picture again; if humans solved it, the service gets a complaint.",
+  "отмечен неверным": "marked wrong", "Не получилось": "Failed", "Нет связи с приложением": "No connection to the app", "Запись не найдена": "Entry not found",
+  "Выйти? Капчи перестанут решаться, пока приложение снова не запустят.": "Quit? Captchas stop being solved until the app is started again.",
+  "Создать новый ключ доступа? Старый перестанет работать — его нужно будет заменить в ваших программах.": "Create a new access key? The old one stops working, replace it in your programs.",
+  "Создать": "Create", "Удалить ключ людей? Последняя ступень выключится.": "Remove the humans key? The last step turns off.",
+  "Запустить": "Start", "Скачать": "Download",
+  "Скачать набор настоящих капч с Hugging Face (~36 МБ)? Лицензия не указана — только для личной проверки.": "Download a set of real captchas from Hugging Face (~36 MB)? No license is given, for personal testing only.",
+  "цена неизвестна — поставщик её не публикует": "price unknown, the provider does not publish it", "цена неизвестна": "price unknown", "только что": "just now",
+};
+const RULES = [
+  [/^(\d+) сегодня$/, "$1 today"], [/^(\d+) сегодня · лимит (.+)$/, "$1 today · limit $2"],
+  [/^Люди понадобились (\d+) раз из (\d+)\.$/, "Humans were needed $1 times of $2."],
+  [/^проверка (\S+) · (\S+) с$/, "test $1 · $2 s"], [/^включено (\d+) из (\d+)$/, "on: $1 of $2"],
+  [/^Последнюю капчу решила ступень «(.+)»$/, (m, a) => `The last captcha was solved by «${t(a)}»`],
+  [/^(.+) · ([\d.,]+) с$/, (m, a, b) => `${t(a)} · ${b} s`],
+  [/^Сегодня: модели (.+), люди (.+)\.(.*)$/, (m, a, b, c) => `Today: models ${a.replace(" из ", " of ")}, humans ${b.replace(" из ", " of ")}.${c ? t(c) : ""}`],
+  [/^ У (\d+) моделей цена неизвестна — их траты в лимит не попадают\.$/, " $1 models have no known price, their spend is not counted in the limit."],
+  [/^(\d+) из (.+) файлов$/, "$1 of $2 files"], [/^скачан · (\d+) капч$/, "downloaded · $1 captchas"], [/^Скачать ~(\S+) МБ$/, "Download ~$1 MB"],
+  [/^(\d+) из (\d+)$/, "$1 of $2"], [/^ошибок: (\d+)$/, "errors: $1"], [/^Сравнение от (.+)$/, (m, a) => `Comparison from ${t(a)}`],
+  [/^(\d+) мин назад$/, "$1 min ago"], [/^(.+) бесплатно · (.+)$/, "$1 free · $2"], [/^(\d+) · (.+)$/, (m, a, b) => `${a} · ${t(b)}`],
+  [/^Нажмите, чтобы (выключить|включить)$/, (m, a) => a === "выключить" ? "Click to turn off" : "Click to turn on"],
+  [/^([\d.,]+) с$/, "$1 s"],
+  [/^Моделей: (\d+), решений: (\d+), (.+)\. Запустить сравнение\?$/, (m, a, b, c) => `Models: ${a}, runs: ${b}, ${t(c)}. Start the comparison?`],
+  [/^примерно (.+)$/, "about $1"], [/^Удалить ключ (.+) и его модели\?$/, "Remove key $1 and its models?"],
+  [/^Прогнать (.+) на 4 уровнях раздумий: решений (\d+), (.+)\. Запустить\?$/, (m, a, b, c) => `Run ${a} at 4 thinking levels: ${b} runs, ${t(c)}. Start?`],
+  [/^(.+): ответ принят \((\d+)%\)$/m, "$1: answer accepted ($2%)"],
+];
+function t(s) {
+  if (LANG !== "en" || !s) return s;
+  const lead = s.match(/^\s*/)[0], tail = s.match(/\s*$/)[0], core = s.trim();
+  if (!core) return s;
+  if (EN[core] !== undefined) return lead + EN[core] + tail;
+  for (const [re, to] of RULES) if (re.test(core)) return lead + core.replace(re, to) + tail;
+  return s;
+}
+function translateDom(root) {
+  if (LANG !== "en") return;
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    if (!/[А-Яа-яЁё]/.test(n.nodeValue) || n.parentElement.closest(".mono, pre, script, style")) continue;
+    const v = t(n.nodeValue); if (v !== n.nodeValue) n.nodeValue = v;
+  }
+  root.querySelectorAll("[placeholder], [title]").forEach(el => {
+    for (const a of ["placeholder", "title"]) { const v = el.getAttribute(a); if (v && /[А-Яа-яЁё]/.test(v)) el.setAttribute(a, t(v)); }
+  });
+}
+const LOCALE = () => LANG === "en" ? "en-GB" : "ru";
+const dec = x => LANG === "en" ? String(x) : String(x).replace(".", ",");
 
 function toast(text, bad) {
-  const t = $("toast"); t.textContent = text; t.className = "show" + (bad ? " bad" : "");
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.className = "", bad ? 7000 : 3000);
+  const box = $("toast"); box.textContent = t(text); box.className = "show" + (bad ? " bad" : "");
+  clearTimeout(toast.h); toast.h = setTimeout(() => box.className = "", bad ? 7000 : 3000);
 }
 
 async function api(action, body, button) {
@@ -378,7 +487,7 @@ async function api(action, body, button) {
 // the built-in confirm dialog silently returns false inside a WKWebView without a UI delegate
 function ask(text, yes) {
   return new Promise(resolve => {
-    $("confirmText").textContent = text; $("confirmYes").textContent = yes || "Да"; $("confirmBox").hidden = false; $("confirmYes").focus();
+    $("confirmText").textContent = t(text); $("confirmYes").textContent = t(yes || "Да"); $("confirmBox").hidden = false; $("confirmYes").focus();
     const close = v => { $("confirmBox").hidden = true; $("confirmYes").onclick = $("confirmNo").onclick = null; ask.close = null; resolve(v); };
     ask.close = close;
     $("confirmYes").onclick = () => close(true); $("confirmNo").onclick = () => close(false);
@@ -422,17 +531,18 @@ function stats(s) {
   return {
     solved, human,
     free: solved ? Math.round((solved - human) / solved * 100) + "%" : "—",
-    avg: ok.length ? (ok.reduce((a, r) => a + r.seconds, 0) / ok.length).toFixed(ok.length && ok.reduce((a, r) => a + r.seconds, 0) / ok.length < 10 ? 1 : 0).replace(".", ",") + " с" : "—",
+    avg: ok.length ? (ok.reduce((a, r) => a + r.seconds, 0) / ok.length).toFixed(ok.length && ok.reduce((a, r) => a + r.seconds, 0) / ok.length < 10 ? 1 : 0).replace(".", LANG === "en" ? "." : ",") + " с" : "—",
     spentText: s.human.spentToday || !s.cloud.spentToday ? money(s.human.spentToday, s.human.currency) : money(s.cloud.spentToday, "$"),
   };
 }
 
 function render(s) {
   const prev = S; S = s;
+  if (s.lang && s.lang !== LANG) { LANG = s.lang; document.documentElement.lang = LANG; translateDom(document.body); }
   const st = stats(s), on = s.layers.filter(l => l.enabled);
   const last = s.recent.find(r => !r.error);
   const hotId = last && on.some(l => l.id === last.layer) ? last.layer : null;
-  if (POP) return renderPop(s, st, on, hotId);
+  if (POP) { renderPop(s, st, on, hotId); return translateDom($("pop")); }
 
   $("statusText").textContent = s.paused ? "На паузе" : "Работает";
   $("liveDot").className = "live" + (s.paused ? " off" : "");
@@ -457,7 +567,7 @@ function render(s) {
     sp.classList.add("go");
   }
   $("todayRecent").innerHTML = s.recent.length ? s.recent.slice(0, 4).map(r => `<div class="row2" data-entry="${r.id}"><span class="t num">${hhmm(r.at)}</span>
-      <span>${esc(r.typeTitle)}</span><span class="mut">${r.error ? "не решена" : esc(shortOf(r.layer, r.layerTitle))} · ${String(r.seconds).replace(".", ",")} с</span>
+      <span>${esc(r.typeTitle)}</span><span class="mut">${r.error ? "не решена" : esc(shortOf(r.layer, r.layerTitle))} · ${dec(r.seconds)} с</span>
       <span class="r">${r.error ? "✕" : r.reported ? "!" : "✓"}</span></div>`).join("") : '<div class="empty">Пока ни одной.</div>';
 
   renderLayers(s, on, hotId);
@@ -470,6 +580,7 @@ function render(s) {
   renderBench(s.bench);
   renderJournal(s.recent);
   renderStats(s.stats);
+  translateDom($("app"));
 }
 
 function shortOf(id, title) { const l = S.layers.find(x => x.id === id); return l ? shortTitle(l) : (title || id); }
@@ -564,9 +675,10 @@ function renderConnect(s) {
   $("clientKey").textContent = s.access.required ? s.access.key : "не требуется";
   $("requireKey").checked = s.access.required; $("login").checked = s.startAtLogin;
   $("copyKey").disabled = $("newKey").disabled = !s.access.required;
-  const key = s.access.required ? s.access.key : "любой";
-  $("exampleV2").textContent = `POST ${s.address}/createTask\n{"clientKey": "${key}", "task": {"type": "ImageToTextTask", "body": "<base64 картинки>"}}\n\nPOST ${s.address}/getTaskResult\n{"clientKey": "${key}", "taskId": <номер из ответа>}`;
-  $("exampleV1").textContent = `POST ${s.address}/in.php   key=${key}&method=base64&body=<base64>&json=1\nGET  ${s.address}/res.php?key=${key}&action=get&id=<номер>&json=1`;
+  const key = s.access.required ? s.access.key : t("любой");
+  const [pic, num, id] = LANG === "en" ? ["<base64 of the picture>", "<number from the answer>", "<id>"] : ["<base64 картинки>", "<номер из ответа>", "<номер>"];
+  $("exampleV2").textContent = `POST ${s.address}/createTask\n{"clientKey": "${key}", "task": {"type": "ImageToTextTask", "body": "${pic}"}}\n\nPOST ${s.address}/getTaskResult\n{"clientKey": "${key}", "taskId": ${num}}`;
+  $("exampleV1").textContent = `POST ${s.address}/in.php   key=${key}&method=base64&body=<base64>&json=1\nGET  ${s.address}/res.php?key=${key}&action=get&id=${id}&json=1`;
 }
 
 function renderDatasets(list) {
@@ -608,7 +720,7 @@ function renderJournal(rows) {
   const f = $("journalFilter").value;
   const list = rows.filter(r => !f || (f === "error" && r.error) || (f === "low" && r.lowConfidence) || (f === "reported" && r.reported));
   $("recent").innerHTML = list.length ? `<table><tr><th>Когда</th><th>Вид</th><th>Кто решил</th><th>Ответ</th><th>Уверенность</th><th>Секунд</th></tr>` +
-    list.map(r => `<tr class="click" data-entry="${r.id}"><td class="num">${new Date(r.at * 1000).toLocaleTimeString("ru")}</td><td>${esc(r.typeTitle)}</td>
+    list.map(r => `<tr class="click" data-entry="${r.id}"><td class="num">${new Date(r.at * 1000).toLocaleTimeString(LOCALE())}</td><td>${esc(r.typeTitle)}</td>
       <td>${r.error ? '<span class="tag bad">не решена</span>' : esc(shortOf(r.layer, r.layerTitle))}${r.lowConfidence ? ' <span class="tag warn">не уверен</span>' : ""}${r.reported ? ' <span class="tag bad">неверно</span>' : ""}</td>
       <td class="mono">${r.error ? `<span class="mut">${esc(r.error).slice(0, 80)}</span>` : esc(r.answer)}</td>
       <td>${r.error ? "" : Math.round(r.confidence * 100) + "%"}</td><td class="num">${r.seconds}</td></tr>`).join("") + "</table>"
@@ -647,13 +759,14 @@ async function openEntry(id) {
     <img class="captcha-img" src="data:image/png;base64,${v.replace(/^data:[^,]*,/, "")}"></div>`).join("");
   const params = Object.entries(e.task).filter(([k]) => k !== "type").map(([k, v]) => `<tr><td class="mut">${esc(k)}</td><td class="mono">${esc(typeof v === "object" ? JSON.stringify(v) : v)}</td></tr>`).join("");
   $("entryCard").innerHTML = `<div class="row"><h2 class="grow" style="font-size:20px">${esc(s.typeTitle)}</h2><button id="entryClose">Закрыть</button></div>
-    <p class="mut">${new Date(s.at * 1000).toLocaleString("ru")} · ${s.seconds} с${s.cost ? " · " + s.cost.toFixed(4) : ""}</p>
+    <p class="mut">${new Date(s.at * 1000).toLocaleString(LOCALE())} · ${s.seconds} с${s.cost ? " · " + s.cost.toFixed(4) : ""}</p>
     ${imgs || '<p class="mut">Картинки нет: такую капчу решают на странице сайта.</p>'}
     ${params ? `<table>${params}</table>` : ""}
     <div class="label">Ответ</div>${e.solution ? `<div class="answer">${esc(s.answer)}</div><details><summary>Как его получила программа</summary><pre>${esc(JSON.stringify(e.solution, null, 1))}</pre></details>` : `<pre>${esc(s.error)}</pre>`}
-    <div class="label">Путь по ступеням</div><pre>${esc([...(s.notes || []), s.error ? "" : `${s.layerTitle || s.layer}: ответ принят (${Math.round(s.confidence * 100)}%)`].filter(Boolean).join("\n") || "—")}</pre>
+    <div class="label">Путь по ступеням</div><pre>${esc([...(s.notes || []), s.error ? "" : t(`${s.layerTitle || s.layer}: ответ принят (${Math.round(s.confidence * 100)}%)`)].filter(Boolean).join("\n") || "—")}</pre>
     ${e.solution && !s.reported ? `<div class="row"><button class="danger" id="reportWrong" data-id="${s.id}">Ответ неверный</button>
       <span class="mut grow">Ступень больше не будет решать эту картинку; если решали люди — сервису уйдёт жалоба.</span></div>` : s.reported ? '<span class="tag bad">отмечен неверным</span>' : ""}`;
+  translateDom($("entryCard"));
   $("entryBox").hidden = false;
 }
 
