@@ -4,8 +4,8 @@ import json
 import httpx
 import pytest
 
-from captcha_stack import bench, testset
-from captcha_stack.providers import ModelSpec
+from imnotarobot import bench, testset
+from imnotarobot.providers import ModelSpec
 
 
 def test_generated_cases_are_deterministic_and_cover_every_kind():

@@ -17,7 +17,10 @@ def system_language() -> str:
 
         first = str(NSLocale.preferredLanguages()[0])
     except Exception:
-        out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True, check=False).stdout
+        try:
+            out = subprocess.run(["defaults", "read", "-g", "AppleLanguages"], capture_output=True, text=True, check=False).stdout
+        except OSError:  # not a Mac: the usual LANG variable decides
+            out = os.environ.get("LANG", "")
         first = out.replace("(", "").replace('"', "").strip().split(",")[0].strip() or "en"
     return "ru" if first.lower().startswith("ru") else "en"
 

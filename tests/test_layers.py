@@ -6,7 +6,7 @@ import httpx
 import pytest
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
 
-from captcha_stack.layers import HumanLayer, LocalLayer, Unsolvable
+from imnotarobot.layers import HumanLayer, LocalLayer, Unsolvable
 from helpers import png_b64, text_image
 
 

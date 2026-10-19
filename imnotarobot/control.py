@@ -520,7 +520,7 @@ class Controller:
     @staticmethod
     def launch_agent_plist() -> dict:
         # inside the bundled app sys.executable is the app itself
-        args = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "captcha_stack.menubar"]
+        args = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "imnotarobot.menubar"]
         return {"Label": "app.captcha-stack", "ProgramArguments": args, "RunAtLoad": True, "ProcessType": "Interactive"}
 
     @staticmethod

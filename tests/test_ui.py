@@ -3,12 +3,12 @@ import time
 import pytest
 from fastapi.testclient import TestClient
 
-import captcha_stack.config as config
-import captcha_stack.control as control
-from captcha_stack.config import Config
-from captcha_stack.control import Controller
-from captcha_stack.server import create_app
-from captcha_stack.ui import add_ui_routes
+import imnotarobot.config as config
+import imnotarobot.control as control
+from imnotarobot.config import Config
+from imnotarobot.control import Controller
+from imnotarobot.server import create_app
+from imnotarobot.ui import add_ui_routes
 from helpers import text_image
 
 
@@ -36,7 +36,7 @@ def test_api_refuses_requests_without_the_window_token(ui):
 
 def test_state_never_contains_secrets(ui, monkeypatch):
     c, client = ui
-    from captcha_stack.discovery import Detected, ModelInfo
+    from imnotarobot.discovery import Detected, ModelInfo
 
     monkeypatch.setattr(control, "detect_sync", lambda k, b="", progress=None: Detected("custom", "https://reseller.example/v1",
                                                                           [ModelInfo("claude-x", True)]))
@@ -51,7 +51,7 @@ def test_state_never_contains_secrets(ui, monkeypatch):
 
 def test_bad_key_explains_why(ui, monkeypatch):
     _, client = ui
-    from captcha_stack.discovery import DetectError
+    from imnotarobot.discovery import DetectError
 
     def nobody(key, base="", progress=None):
         raise DetectError("ни один известный поставщик не принял этот ключ")
@@ -166,7 +166,7 @@ def test_journal_survives_restart_opens_and_reports(ui):
     assert r["ok"] and r["state"]["recent"][0]["reported"]
     row = r["state"]["stats"]["rows"][0]
     assert (row["type"], row["layer"], row["answered"], row["bad"]) == ("Текст на картинке", "Локальная модель", 1, 1)
-    from captcha_stack.service import Service
+    from imnotarobot.service import Service
     reborn = Service(c.cfg)
     assert reborn.recent[0]["id"] == task_id and reborn.recent[0]["reported"]
     assert client.get("/api/ui/journal/123", headers={"X-UI-Token": "x"}).status_code == 403
@@ -215,10 +215,10 @@ def test_every_phrase_has_an_english_translation():
     import re
     from pathlib import Path
 
-    from captcha_stack.i18n import EN
+    from imnotarobot.i18n import EN
 
     used = set()
-    for path in Path("captcha_stack").rglob("*.py"):
+    for path in Path("imnotarobot").rglob("*.py"):
         used |= set(re.findall(r'\btr\(\s*"((?:[^"\\]|\\.)*)"', path.read_text()))
     used |= {"Текст на картинке", "Локальная модель"}
     missing = sorted(u for u in used if re.search("[А-Яа-яЁё]", u) and u not in EN)
@@ -226,7 +226,7 @@ def test_every_phrase_has_an_english_translation():
 
 
 def test_english_messages_fill_their_values(monkeypatch):
-    from captcha_stack import i18n
+    from imnotarobot import i18n
 
     monkeypatch.setattr(i18n, "LANG", "en")
     assert i18n.tr("Сегодня: решено {solved} · {spend}", solved=3, spend="models $0.000") == "Today: solved 3 · models $0.000"

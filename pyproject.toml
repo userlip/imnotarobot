@@ -3,16 +3,18 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "captcha-stack"
-version = "0.1.0"
-description = "Layered captcha solver with a 2Captcha-style API: local models, then a vision LLM, then human workers"
+name = "imnotarobot"
+version = "0.4.0"
+description = "I'm Not a Robot: a free-first captcha solver with a 2Captcha-compatible API and an MCP server"
+license = "MIT"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "rumps", "pyobjc-framework-WebKit", "mcp>=2", "patchright"]
+dependencies = ["fastapi", "uvicorn", "httpx", "ddddocr", "pillow", "numpy", "python-multipart", "mcp>=2", "patchright",
+                "rumps; sys_platform == 'darwin'", "pyobjc-framework-WebKit; sys_platform == 'darwin'"]
 
 [project.scripts]
-captcha-stack = "captcha_stack.__main__:main"
-captcha-stack-menubar = "captcha_stack.menubar:main"
-captcha-stack-mcp = "captcha_stack.mcp_server:main"
+imnotarobot = "imnotarobot.__main__:main"
+imnotarobot-menubar = "imnotarobot.menubar:main"
+imnotarobot-mcp = "imnotarobot.mcp_server:main"
 
 [project.optional-dependencies]
 test = ["pytest"]
@@ -21,7 +23,7 @@ test = ["pytest"]
 pythonpath = [".", "tests"]
 
 [tool.setuptools.packages.find]
-include = ["captcha_stack*"]
+include = ["imnotarobot*"]
 
 [tool.setuptools.package-data]
-captcha_stack = ["assets/*.png", "assets/*.html"]
+imnotarobot = ["assets/*.png", "assets/*.html"]

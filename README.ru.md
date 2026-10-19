@@ -25,7 +25,7 @@
 
 ```bash
 uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -e ".[test]"
-.venv/bin/python -m captcha_stack --port 8765
+.venv/bin/python -m imnotarobot --port 8765
 ```
 
 Обычно всё настраивается в окне программы: ключи, модели, порядок ступеней, лимиты. Для запуска без окна есть переменные окружения:

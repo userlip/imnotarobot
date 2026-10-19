@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 APP="ImNotARobot.app"
-../.venv/bin/pyinstaller --noconfirm --distpath ../dist --workpath ../build CaptchaStack.spec
+../.venv/bin/pyinstaller --noconfirm --distpath ../dist --workpath ../build ImNotARobot.spec
 "../dist/$APP/Contents/MacOS/ImNotARobot" --selftest
 mkdir -p "$HOME/Applications"
 for old in "$HOME/Applications/$APP" "$HOME/Applications/Я не робот.app" "$HOME/Applications/Captcha Stack.app"; do

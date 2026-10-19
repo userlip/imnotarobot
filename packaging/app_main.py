@@ -12,9 +12,9 @@ def selftest() -> int:
     import rumps  # noqa: F401
     import uvicorn  # noqa: F401
 
-    from captcha_stack import testset
-    from captcha_stack.config import Config
-    from captcha_stack.service import Service
+    from imnotarobot import testset
+    from imnotarobot.config import Config
+    from imnotarobot.service import Service
 
     with tempfile.TemporaryDirectory() as tmp:
         cfg = Config(layers=["local"], state_path=f"{tmp}/state.json")
@@ -22,10 +22,10 @@ def selftest() -> int:
         r = asyncio.run(Service(cfg).chain.solve(case["task"]))
     import WebKit  # noqa: F401
 
-    from captcha_stack.menubar import ICON
-    from captcha_stack.ui import PAGE
+    from imnotarobot.menubar import ICON
+    from imnotarobot.ui import PAGE
 
-    from captcha_stack import config
+    from imnotarobot import config
 
     probe = "__selftest__"
     config.set_secret(probe, "ok")
@@ -41,10 +41,10 @@ if __name__ == "__main__":
     if "--selftest" in sys.argv:
         sys.exit(selftest())
     if "--mcp" in sys.argv:
-        from captcha_stack.mcp_server import main as mcp_main
+        from imnotarobot.mcp_server import main as mcp_main
 
         mcp_main()
         sys.exit(0)
-    from captcha_stack.menubar import main
+    from imnotarobot.menubar import main
 
     main()

@@ -10,7 +10,9 @@ from typing import Any
 from .providers import ModelSpec
 from .i18n import tr
 
-APP_DIR = Path(os.environ.get("CAPTCHA_STACK_HOME", Path.home() / "Library" / "Application Support" / "captcha-stack"))
+# the folder keeps its first name so existing settings, journal and keys survive the rename
+APP_DIR = Path(os.environ.get("IMNOTAROBOT_HOME") or os.environ.get("CAPTCHA_STACK_HOME")
+               or Path.home() / "Library" / "Application Support" / "captcha-stack")
 KEYCHAIN_SERVICE = "captcha-stack"
 HUMAN_PRESETS = {"2captcha": "https://api.2captcha.com", "rucaptcha": "https://api.rucaptcha.com"}
 # RuCaptcha bills and reports balance in roubles, 2Captcha in dollars

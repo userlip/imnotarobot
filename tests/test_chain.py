@@ -2,8 +2,8 @@ import asyncio
 
 import pytest
 
-from captcha_stack.chain import Chain, State, today
-from captcha_stack.layers import Unsolvable
+from imnotarobot.chain import Chain, State, today
+from imnotarobot.layers import Unsolvable
 from helpers import FakeLayer
 
 TASK = {"type": "ImageToTextTask", "body": "aGVsbG8="}
@@ -140,7 +140,7 @@ def test_unsure_answers_are_passed_to_layers_that_take_them():
 
 
 def test_silent_service_skips_its_other_models_and_goes_to_the_next_service():
-    from captcha_stack.layers import Unavailable
+    from imnotarobot.layers import Unavailable
 
     low = FakeLayer("low", [Unavailable("All accounts failed")])
     high = FakeLayer("high", [("abc", 1.0)])

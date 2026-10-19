@@ -1,11 +1,13 @@
 import base64
 import io
+import os
 
 from PIL import Image, ImageDraw, ImageFont
 
-from captcha_stack.layers import Layer, Result, Unsolvable
+from imnotarobot.layers import Layer, Result, Unsolvable
 
-FONT = "/System/Library/Fonts/Supplemental/Arial.ttf"
+FONT = next((f for f in ["/System/Library/Fonts/Supplemental/Arial.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"]
+             if os.path.exists(f)), None)
 
 
 def text_image(text: str, size=(160, 60)) -> str:

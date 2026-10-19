@@ -4,11 +4,11 @@ import time
 import httpx
 import pytest
 
-import captcha_stack.config as config
-from captcha_stack import client as client_mod
-from captcha_stack import mcp_server
-from captcha_stack.config import Config
-from captcha_stack.control import Controller
+import imnotarobot.config as config
+from imnotarobot import client as client_mod
+from imnotarobot import mcp_server
+from imnotarobot.config import Config
+from imnotarobot.control import Controller
 from helpers import text_image
 
 

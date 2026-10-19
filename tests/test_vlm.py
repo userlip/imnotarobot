@@ -7,10 +7,10 @@ import httpx
 import pytest
 from PIL import Image
 
-from captcha_stack import imaging
-from captcha_stack.layers import Unsolvable, VlmLayer
-from captcha_stack.layers.vlm import last_json
-from captcha_stack.providers import ModelSpec, ask
+from imnotarobot import imaging
+from imnotarobot.layers import Unsolvable, VlmLayer
+from imnotarobot.layers.vlm import last_json
+from imnotarobot.providers import ModelSpec, ask
 from helpers import blank_image
 
 
@@ -146,7 +146,7 @@ def test_upscale_only_small_images():
 
 
 def test_failures_are_remembered_per_model_and_cleared_on_success():
-    from captcha_stack.layers.vlm import LAST_ERRORS
+    from imnotarobot.layers.vlm import LAST_ERRORS
 
     bad = FakeModel(["no json at all"])
     layer = bad.layer(votes=1)
@@ -171,13 +171,13 @@ def test_failures_are_remembered_per_model_and_cleared_on_success():
     ("openai", "", "default", {}),
 ])
 def test_effort_dialects(provider, protocol, effort, expected):
-    from captcha_stack.providers import effort_fields
+    from imnotarobot.providers import effort_fields
 
     assert effort_fields(ModelSpec(name=f"e-{provider}-{effort}", provider=provider, model="m"), effort) == expected
 
 
 def test_effort_is_dropped_when_the_api_refuses_it():
-    from captcha_stack.providers import NO_EFFORT
+    from imnotarobot.providers import NO_EFFORT
 
     sent = []
 
@@ -260,7 +260,7 @@ def test_silent_service_gets_one_immediate_retry():
 
 
 def test_service_silent_twice_is_reported_unavailable():
-    from captcha_stack.layers import Unavailable
+    from imnotarobot.layers import Unavailable
 
     s = ModelSpec(name="m", provider="custom", base_url="http://x/v1", api_key="k", votes=1)
     layer = VlmLayer(s, transport=httpx.MockTransport(lambda r: httpx.Response(503, text="All accounts failed")))

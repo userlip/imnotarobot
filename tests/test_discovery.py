@@ -3,7 +3,7 @@ import asyncio
 import httpx
 import pytest
 
-from captcha_stack.discovery import DetectError, detect
+from imnotarobot.discovery import DetectError, detect
 
 
 def fake_world(accepting: str, models: dict, calls: list):

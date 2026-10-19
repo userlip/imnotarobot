@@ -2,10 +2,10 @@ import plistlib
 
 import pytest
 
-import captcha_stack.config as config
-import captcha_stack.control as control
-from captcha_stack.config import Config
-from captcha_stack.control import Controller
+import imnotarobot.config as config
+import imnotarobot.control as control
+from imnotarobot.config import Config
+from imnotarobot.control import Controller
 
 
 @pytest.fixture
@@ -67,7 +67,7 @@ def test_remove_model_deletes_its_key(ctl):
 def test_start_at_login_writes_a_launch_agent(ctl):
     ctl.set_start_at_login(True)
     data = plistlib.loads(control.LAUNCH_AGENT.read_bytes())
-    assert data["ProgramArguments"][1:] == ["-m", "captcha_stack.menubar"] and data["RunAtLoad"]
+    assert data["ProgramArguments"][1:] == ["-m", "imnotarobot.menubar"] and data["RunAtLoad"]
     ctl.set_start_at_login(False)
     assert not ctl.starts_at_login()
 
@@ -79,7 +79,7 @@ def test_today_line_sums_layers(ctl):
 
 
 def fake_detect(monkeypatch, provider, models, listable=True, base="https://api.example/v1"):
-    from captcha_stack.discovery import Detected, ModelInfo
+    from imnotarobot.discovery import Detected, ModelInfo
 
     found = Detected(provider, base, [ModelInfo(m, v, 0.3, 2.5) for m, v in models], listable)
     monkeypatch.setattr(control, "detect_sync", lambda key, base_url="", progress=None: found)
@@ -176,7 +176,7 @@ def test_effort_settings_and_level_comparison_specs(ctl, monkeypatch):
 def test_old_settings_switch_models_to_one_ask(tmp_path):
     import json
 
-    from captcha_stack.config import Config
+    from imnotarobot.config import Config
 
     path = tmp_path / "config.json"
     path.write_text(json.dumps({"models": [{"name": "g", "provider": "gemini", "votes": 3},

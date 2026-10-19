@@ -2,8 +2,8 @@ import time
 
 from fastapi.testclient import TestClient
 
-from captcha_stack.config import Config
-from captcha_stack.server import create_app
+from imnotarobot.config import Config
+from imnotarobot.server import create_app
 from helpers import FakeLayer
 
 
@@ -18,7 +18,7 @@ def wait_result(client, task_id, key="", timeout=5.0):
 
 
 def make(layers, **cfg):
-    import captcha_stack.config as config
+    import imnotarobot.config as config
     cfg.setdefault("state_path", str(config.APP_DIR / "state.json"))
     return TestClient(create_app(Config(**cfg), layers))
 
@@ -91,7 +91,7 @@ def test_legacy_file_upload_and_grid_answer_format():
     grid = FakeLayer("vlm", [("x", 1.0)], types=("GridTask",))
 
     async def solve(task):
-        from captcha_stack.layers import Result
+        from imnotarobot.layers import Result
         assert (task["rows"], task["columns"], task["comment"]) == (4, 4, "select buses")
         return Result({"click": [2, 5]}, 1.0, "vlm")
 

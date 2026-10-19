@@ -3,10 +3,10 @@ import os
 
 import pytest
 
-from captcha_stack.config import Config, ModelSpec
-from captcha_stack.layers import Unavailable, Unsolvable
-from captcha_stack.layers.browser import BrowserLayer, ask_models, proxy_of, widget_page
-from captcha_stack.service import build_layers
+from imnotarobot.config import Config, ModelSpec
+from imnotarobot.layers import Unavailable, Unsolvable
+from imnotarobot.layers.browser import BrowserLayer, ask_models, proxy_of, widget_page
+from imnotarobot.service import build_layers
 from helpers import FakeLayer
 
 
