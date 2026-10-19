@@ -40,15 +40,15 @@ Optional: add a RuCaptcha or 2Captcha key as the last, paid step.
 
 ## Measured results
 
-On our test set and the official demo pages, October 2026. Small samples — a reproducible benchmark is on the [roadmap](docs/roadmap.md).
+On our test set and the official demo pages, October 2026. Small samples; rerun the checkbox part yourself with `python -m imnotarobot.demo_bench --runs 10`.
 
 | Captcha | Result |
 |---|---|
 | Text, picture grids (vision model) | 100% |
 | Clicks on real captchas (vision model) | 69–72% of 39 |
-| reCAPTCHA v2 demo (browser) | accepted by Google 2 of 3, ~130 s |
-| reCAPTCHA v3, Turnstile (browser) | token in 3–4 s |
-| hCaptcha demo (browser) | token in 4 of 6 |
+| reCAPTCHA v2 demo (browser) | accepted by Google 2 of 3, median 118 s |
+| reCAPTCHA v3, Turnstile test key (browser) | 5 of 5, 3–4 s |
+| hCaptcha demo (browser) | 5 of 5, median 82 s |
 
 ## Compared with
 
