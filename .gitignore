@@ -8,3 +8,5 @@ build/
 build.log
 OPEN.md
 docs/audit.md
+docs/roadmap.md
+design/
