@@ -6,7 +6,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
-from .layers import Layer, Result, Unsolvable
+from .layers import Layer, Result, Unavailable, Unsolvable
 
 log = logging.getLogger(__name__)
 
@@ -126,16 +126,24 @@ class Chain:
         kind, key = kind_of(task), image_key(task)
         candidates: list[Result] = []
         notes: list[str] = []
+        silent: set[str] = set()
         for layer in self.layers:
             if not layer.supports(task["type"]):
                 continue
             reason = self._skip_reason(layer, kind, key)
+            if not reason and layer.upstream and layer.upstream in silent:
+                reason = "тот же сервис только что не ответил"
             if reason:
                 notes.append(f"{layer.title or layer.name}: {reason}")
                 continue
             try:
-                r = await layer.solve(task)
+                if getattr(layer, "accepts_prior", False) and candidates:
+                    r = await layer.solve(task, prior=[c.solution for c in candidates])
+                else:
+                    r = await layer.solve(task)
             except Exception as e:  # any layer failure means: try the next one
+                if isinstance(e, Unavailable) and layer.upstream:
+                    silent.add(layer.upstream)
                 notes.append(f"{layer.title or layer.name}: {e}")
                 log.info("layer %s failed: %s", layer.name, e)
                 continue

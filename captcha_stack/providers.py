@@ -35,7 +35,8 @@ class ModelSpec:
     api_key: str = ""
     base_url: str = ""
     protocol: str = ""
-    votes: int = 3
+    # 1 = one ask, a second only when an earlier layer answered differently; 2-3 = always vote
+    votes: int = 1
     min_confidence: float = 0.66
     timeout: float = 90.0
     # USD per 1M tokens; 0 means the cost is not tracked

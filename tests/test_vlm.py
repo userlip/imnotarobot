@@ -218,3 +218,51 @@ def test_box_mode_without_targets_fails():
     m = FakeModel(['{"targets": []}'])
     with pytest.raises(Unsolvable, match="не обвела"):
         run(m.layer(votes=1).solve({"type": "CoordinatesTask", "body": blank_image((200, 100))}))
+
+
+def test_one_ask_by_default():
+    m = FakeModel(['{"text": "abc"}'])
+    r = run(m.layer(votes=1).solve({"type": "ImageToTextTask", "body": blank_image()}))
+    assert (r.solution, r.confidence, len(m.requests)) == ({"text": "abc"}, 1.0, 1)
+    assert ModelSpec(name="x", provider="gemini").votes == 1
+
+
+def test_matching_earlier_answer_needs_no_second_ask():
+    m = FakeModel(['{"text": "abc"}'])
+    r = run(m.layer(votes=1).solve({"type": "ImageToTextTask", "body": blank_image()}, prior=[{"text": "abc"}]))
+    assert (r.confidence, len(m.requests)) == (1.0, 1)
+
+
+def test_disagreeing_with_earlier_layer_asks_once_more():
+    m = FakeModel(['{"text": "abd"}', '{"text": "abd"}'])
+    r = run(m.layer(votes=1).solve({"type": "ImageToTextTask", "body": blank_image()}, prior=[{"text": "abc"}]))
+    assert (r.solution, r.confidence, len(m.requests)) == ({"text": "abd"}, 1.0, 2)
+
+
+def test_split_asks_side_with_the_earlier_layer():
+    m = FakeModel(['{"text": "abd"}', '{"text": "abc"}'])
+    r = run(m.layer(votes=1).solve({"type": "ImageToTextTask", "body": blank_image()}, prior=[{"text": "abc"}]))
+    assert (r.solution, r.confidence, len(m.requests)) == ({"text": "abc"}, 0.5, 2)
+
+
+def test_silent_service_gets_one_immediate_retry():
+    calls = []
+
+    def flaky(request):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(503, text="All accounts failed")
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"text": "abc"}'}}]})
+
+    s = ModelSpec(name="m", provider="custom", base_url="http://x/v1", api_key="k", votes=1)
+    r = run(VlmLayer(s, transport=httpx.MockTransport(flaky)).solve({"type": "ImageToTextTask", "body": blank_image()}))
+    assert r.solution == {"text": "abc"} and len(calls) == 2
+
+
+def test_service_silent_twice_is_reported_unavailable():
+    from captcha_stack.layers import Unavailable
+
+    s = ModelSpec(name="m", provider="custom", base_url="http://x/v1", api_key="k", votes=1)
+    layer = VlmLayer(s, transport=httpx.MockTransport(lambda r: httpx.Response(503, text="All accounts failed")))
+    with pytest.raises(Unavailable):
+        run(layer.solve({"type": "ImageToTextTask", "body": blank_image()}))

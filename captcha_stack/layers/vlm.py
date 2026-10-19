@@ -21,7 +21,7 @@ import httpx
 
 from .. import imaging
 from ..providers import ModelSpec, ask
-from .base import Layer, Result, Unsolvable, decode_image, text_fits
+from .base import Layer, Result, Unavailable, Unsolvable, decode_image, text_fits
 
 TEXT_PROMPT = (
     "The image is a captcha. Read its characters exactly as shown, nothing else. {hint}\n"
@@ -98,11 +98,15 @@ class VlmLayer(Layer):
         self.title = spec.model or spec.name
         self.min_confidence = spec.min_confidence
         self.transport = transport
+        self.upstream = f"{spec.base_url}|{spec.key or spec.name}"
 
     def available(self) -> bool:
         return self.spec.ready()
 
-    async def solve(self, task: dict[str, Any]) -> Result:
+    accepts_prior = True
+
+    async def solve(self, task: dict[str, Any], prior: list[dict[str, Any]] | None = None) -> Result:
+        """`prior` holds answers of earlier layers that were unsure; with one vote, disagreeing with them earns a second ask."""
         images, prompt, parse, same = self._prepare(task)
         effort = self.spec.effort_clicks if task["type"] == "CoordinatesTask" else self.spec.effort_recognition
         votes = max(1, self.spec.votes)
@@ -110,11 +114,17 @@ class VlmLayer(Layer):
         errors: list[str] = []
         cost = 0.0
         tokens = {"input": 0, "output": 0, "asks": 0}
+        unreachable = 0
 
         async def one() -> None:
-            nonlocal cost
+            nonlocal cost, unreachable
             try:
                 reply, usage = await ask(self.spec, images, prompt, self.transport, effort)
+            except Exception as e:
+                errors.append(str(e))
+                unreachable += 1
+                return
+            try:
                 cost += self.spec.cost(usage)
                 tokens["input"] += usage.get("input", 0)
                 tokens["output"] += usage.get("output", 0)
@@ -128,14 +138,31 @@ class VlmLayer(Layer):
         if votes > 2 and not (len(answers) == 2 and same(answers[0], answers[1])):
             await asyncio.gather(*(one() for _ in range(votes - asked)))
             asked = votes
+        if not answers and unreachable == asked:
+            # one immediate retry; if the service is still silent the chain moves past it
+            await one()
+            asked += 1
+        disputed = bool(votes == 1 and answers and prior
+                        and _consensus(task["type"], answers, same)[0] not in prior)
+        if disputed:
+            await one()
+            asked = len(answers)
         if errors:
             LAST_ERRORS[self.name] = (time.time(), errors[-1][:300])
         else:
             LAST_ERRORS.pop(self.name, None)
         if not answers:
-            raise Unsolvable("; ".join(dict.fromkeys(errors)) or "нет ответа")
+            error = Unavailable if unreachable == asked else Unsolvable
+            raise error("; ".join(dict.fromkeys(errors)) or "нет ответа")
         final, support = _consensus(task["type"], answers, same)
-        confidence = 1.0 if votes == 1 else support / asked
+        if disputed and support < len(answers):
+            # the two asks split: hand back the one that matches the earlier layer, the chain accepts such a twin
+            final = next((s for s in (_consensus(task["type"], [a], same)[0] for a in answers) if s in prior), final)
+            confidence = 0.5
+        elif votes == 1:
+            confidence = 1.0
+        else:
+            confidence = support / asked
         return Result(final, confidence, self.name, cost=cost,
                       meta={"model": self.spec.model, "answers": answers, "errors": errors, "tokens": tokens})
 

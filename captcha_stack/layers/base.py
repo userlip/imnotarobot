@@ -11,6 +11,10 @@ class Unsolvable(Exception):
     pass
 
 
+class Unavailable(Unsolvable):
+    """The service behind the layer gave no answer at all; other layers on the same service are skipped."""
+
+
 @dataclass
 class Result:
     solution: dict[str, Any]
@@ -27,6 +31,8 @@ class Layer:
     task_types: frozenset[str] = frozenset()
     # 1.0 means the answer is accepted without a confidence check
     min_confidence = 1.0
+    # layers with the same non-empty upstream share one service and its outages
+    upstream = ""
 
     def available(self) -> bool:
         return True

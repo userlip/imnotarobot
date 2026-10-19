@@ -124,3 +124,27 @@ def test_shared_cloud_limit_covers_every_model():
     with pytest.raises(Unsolvable, match="общий дневной лимит"):
         solve(chain, {**TASK, "body": "3"})
     assert (a.calls, b.calls) == (2, 0)
+
+
+def test_unsure_answers_are_passed_to_layers_that_take_them():
+    class Taker(FakeLayer):
+        accepts_prior = True
+
+        async def solve(self, task, prior=None):
+            self.prior = prior
+            return await super().solve(task)
+
+    local, cloud = FakeLayer("local", [("abc", 0.3)]), Taker("cloud", [("abc", 0.5)])
+    r = asyncio.run(Chain([local, cloud], State()).solve({"type": "ImageToTextTask", "body": ""}))
+    assert cloud.prior == [{"text": "abc"}] and r.layer == "cloud" and r.meta["agreed_with"] == "local"
+
+
+def test_silent_service_skips_its_other_models_and_goes_to_the_next_service():
+    from captcha_stack.layers import Unavailable
+
+    low = FakeLayer("low", [Unavailable("All accounts failed")])
+    high = FakeLayer("high", [("abc", 1.0)])
+    low.upstream = high.upstream = "antigravity"
+    human = FakeLayer("human", [("xyz", 1.0)])
+    r = asyncio.run(Chain([low, high, human], State()).solve({"type": "ImageToTextTask", "body": ""}))
+    assert r.layer == "human" and high.calls == 0

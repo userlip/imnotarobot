@@ -94,6 +94,8 @@ class Config:
     skip_after_reports: int = 5
     task_ttl: float = 600.0
     state_path: str = ""
+    # bumped when saved settings need migrating
+    schema: int = 2
 
     def __post_init__(self):
         self.human_base_url = (self.human_base_url or HUMAN_PRESETS.get(self.human_provider, "")).rstrip("/")
@@ -109,6 +111,12 @@ class Config:
         cfg = cls(**{k: v for k, v in raw.items() if k in names})
         cfg.keys = [KeyEntry(**k) for k in raw.get("keys", [])]
         cfg.models = [ModelSpec(**m) for m in raw.get("models", [])]
+        if raw.get("schema", 1) < 2:
+            # schema 1 always asked models 3 times; free quotas last longer with one ask
+            for m in cfg.models:
+                if m.votes == 3:
+                    m.votes = 1
+            cfg.schema = 2
         if with_secrets:
             for m in cfg.models:
                 m.api_key = m.api_key or model_key(m)

@@ -171,3 +171,18 @@ def test_effort_settings_and_level_comparison_specs(ctl, monkeypatch):
     assert levels == [("none", "none"), ("low", "low"), ("medium", "medium"), ("high", "high")]
     with pytest.raises(ValueError):
         ctl.set_effort("openai", "gpt-x", "clicks", "turbo")
+
+
+def test_old_settings_switch_models_to_one_ask(tmp_path):
+    import json
+
+    from captcha_stack.config import Config
+
+    path = tmp_path / "config.json"
+    path.write_text(json.dumps({"models": [{"name": "g", "provider": "gemini", "votes": 3},
+                                           {"name": "q", "provider": "dashscope", "votes": 2}]}))
+    cfg = Config.load(path, with_secrets=False)
+    assert [m.votes for m in cfg.models] == [1, 2] and cfg.schema == 2
+    cfg.models[0].votes = 3
+    cfg.save(path)
+    assert Config.load(path, with_secrets=False).models[0].votes == 3
