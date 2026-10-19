@@ -1,56 +1,57 @@
-# Я не робот · yanerobot
+# I'm Not a Robot · imnotarobot
 
-Решатель капч на этом Маке: программа в строке меню с API как у 2Captcha и RuCaptcha (`createTask` / `getTaskResult`, `in.php` / `res.php`) и MCP-сервером для агентов. Капча идёт по ступеням от бесплатной к платной:
+**English** · [Русский](README.ru.md)
 
-1. **Своя модель** — ddddocr и сравнение кусочков на этом компьютере: текстовые капчи, слайдеры. Бесплатно, миллисекунды.
-2. **Облачная модель** (по умолчанию Gemini Flash) — текст, сетки «выбери все автобусы», клики по картинке. Один запрос на капчу; второй — только если ответ разошёлся со своей моделью. Сервис молчит — один повтор сразу, дальше следующая ступень.
-3. **Запасная облачная** (Gemini High) — если первая не уверена или ошиблась.
-4. **Браузер** — галочки reCAPTCHA v2/v3, hCaptcha, Turnstile: невидимый Chrome жмёт галочку, картинки и задания hCaptcha на холсте отдаёт облачной модели.
-5. **RuCaptcha / 2Captcha** — последняя, платная.
+A captcha solver that lives in the macOS menu bar. Programs talk to it through the 2Captcha / RuCaptcha API (`createTask` / `getTaskResult`, `in.php` / `res.php`), agents through an MCP server. Every captcha climbs a ladder from free to paid:
 
-Следующая ступень включается, если предыдущая не справилась, не уверена или не умеет такой вид. Две неуверенные ступени с одинаковым ответом — ответ принимается.
+1. **Local model**: ddddocr and piece matching on this Mac. Text captchas and sliders, free, milliseconds.
+2. **Vision model** (Gemini Flash by default, any OpenAI-compatible endpoint works): text, "select all buses" grids, clicks on a picture. One request per captcha; a second one only when the answer disagrees with the local model. A silent service gets one immediate retry, then the next step takes over.
+3. **Backup vision model** (Gemini High): when the first one is unsure or wrong.
+4. **Browser**: reCAPTCHA v2/v3, hCaptcha and Turnstile checkboxes. An invisible Chrome ticks the box and hands picture grids and hCaptcha canvas tasks to the vision model.
+5. **RuCaptcha / 2Captcha**: human workers, the last and only paid step.
 
-Дальше по замыслу — «руки для модели»: набор инструментов, с которым облачная модель решает любую капчу сама, в цикле «посмотрел → сделал → проверил» (см. `OPEN.md`).
+The next step runs when the previous one failed, was unsure, or cannot do that kind of captcha. Two unsure steps that agree are accepted.
 
-Обратная связь:
-- `reportIncorrect` запоминает, что ступень ошиблась на этой картинке; с `"retry": true` сразу решает заново следующей.
-- Если ступень ошибается на большинстве капч одного вида (тип + инструкция), она пропускается для этого вида.
-- Жалоба на ответ людей пересылается в RuCaptcha/2Captcha (там возвращают деньги).
+Feedback loop:
+- `reportIncorrect` remembers that a step was wrong on that image; with `"retry": true` the next step solves it right away.
+- A step that is wrong on most captchas of one kind (type + instruction) is skipped for that kind.
+- Complaints about human answers are forwarded to RuCaptcha / 2Captcha, which refunds them.
 
-Сборка программы: `packaging/build.sh` → `~/Applications/Я не робот.app`. Данные и ключи — в `~/Library/Application Support/captcha-stack` и Связке ключей (служба «Captcha Stack»): внутренние имена не менялись, чтобы ничего не потерялось.
+Next on the roadmap: hands for the model, a toolset with which the vision model solves any captcha on its own in a look → act → check loop (see `OPEN.md`).
 
-## Запуск
+The app speaks the system language: English and Russian for now.
+
+## Run
+
+Build the app with `packaging/build.sh`; it installs into `~/Applications`. Keys, models, the order of steps and daily limits are set in its window. Keys live in the macOS Keychain.
+
+Without the app:
 
 ```bash
 uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -e ".[test]"
 .venv/bin/python -m captcha_stack --port 8765
 ```
 
-Настройки — переменные окружения:
-
-| Переменная | По умолчанию | Что |
+| Variable | Default | What |
 |---|---|---|
-| `LAYERS` | `local,vlm,human` | порядок слоёв |
-| `VLM_API_KEY` | первый ключ из `~/.config/dashscope.env` | ключ облачной модели |
-| `VLM_BASE_URL` / `VLM_MODEL` | DashScope / `qwen3-vl-plus` | любая OpenAI-совместимая модель |
-| `HUMAN_API_KEY` | — | ключ 2Captcha или RuCaptcha; без него слой выключен |
-| `HUMAN_BASE_URL` | `https://api.2captcha.com` | для RuCaptcha — `https://api.rucaptcha.com` |
-| `OCR_MIN_CONFIDENCE` / `VLM_MIN_CONFIDENCE` | 0.9 / 0.7 | ниже — ответ считается неуверенным |
-| `CLIENT_KEY` | — | если задан, запросы без него отклоняются |
+| `LAYERS` | `local,vlm,browser,human` | order of steps |
+| `HUMAN_API_KEY` | — | 2Captcha or RuCaptcha key; without it the last step is off |
+| `CLIENT_KEY` | — | requests without it are rejected |
 
-## Виды заданий
+## Task types
 
-| Тип | local | vlm | human |
-|---|---|---|---|
-| `ImageToTextTask` (текст на картинке) | ✓ | ✓ | ✓ |
-| `GridTask` (сетка, ответ — номера клеток с 1) | | ✓ | ✓ |
-| `CoordinatesTask` (куда кликнуть, ответ — пиксели) | | ✓ | ✓ |
-| `SlideMatchTask` (свой: `target` + `background`, ответ — `x`, `y`) | ✓ | | |
-| Любой другой тип 2Captcha (токены, повороты…) | | | ✓ |
+| Type | local | vision | browser | humans |
+|---|---|---|---|---|
+| `ImageToTextTask` (text on a picture) | ✓ | ✓ | | ✓ |
+| `GridTask` (grid, answer is tile numbers from 1) | | ✓ | | ✓ |
+| `CoordinatesTask` (where to click, answer in pixels) | | ✓ | | ✓ |
+| `SlideMatchTask` (own: `target` + `background`, answer `x`, `y`) | ✓ | | | |
+| `RecaptchaV2TaskProxyless`, `RecaptchaV3TaskProxyless`, `HCaptchaTaskProxyless`, `TurnstileTaskProxyless` | | | ✓ | ✓ |
+| Any other 2Captcha type (rotate, GeeTest…) | | | | ✓ |
 
-В ответе `getTaskResult` кроме полей 2Captcha есть `layer`, `confidence`, `notes` (что пробовали до этого) и `lowConfidence`. Статистика слоёв — `GET /stats`.
+Besides the 2Captcha fields, `getTaskResult` returns `layer`, `confidence`, `notes` (what was tried before) and `lowConfidence`. Step statistics: `GET /stats`.
 
-## Проверка
+## Tests
 
 ```bash
 .venv/bin/python -m pytest -q
