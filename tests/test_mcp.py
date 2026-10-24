@@ -54,3 +54,14 @@ def test_wrong_access_key_is_refused(running):
     c = client_mod.Client(running.address, key="nope")
     with pytest.raises(RuntimeError, match="clientKey"):
         c.solve({"type": "ImageToTextTask", "body": text_image("ab")})
+
+
+def test_a_slow_captcha_comes_back_as_solving_and_get_result_finishes_it(running, tmp_path, monkeypatch):
+    monkeypatch.setattr(mcp_server, "WAIT_PER_CALL", 0.0)
+    png = tmp_path / "c.png"
+    png.write_bytes(base64.b64decode(text_image("k7m2p")))
+    first = mcp_server.solve_image_captcha(str(png), kind="text")
+    assert first["status"] == "solving" and first["task_id"]
+    monkeypatch.setattr(mcp_server, "WAIT_PER_CALL", 30.0)
+    done = mcp_server.get_result(first["task_id"])
+    assert done["answer"] == {"text": "k7m2p"} and done["task_id"] == first["task_id"]

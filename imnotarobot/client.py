@@ -17,6 +17,12 @@ class NotRunning(Exception):
     pass
 
 
+class StillSolving(RuntimeError):
+    def __init__(self, task_id: int, seconds: float):
+        super().__init__(tr("нет ответа за {seconds} с", seconds=f"{seconds:.0f}"))
+        self.task_id = task_id
+
+
 def locate() -> tuple[str, str]:
     """(address, access key) of the solver running on this Mac."""
     runtime = Path(config.APP_DIR) / "runtime.json"
@@ -44,11 +50,14 @@ class Client:
         with httpx.Client(timeout=30, transport=self.transport) as c:
             return c.post(f"{self.address}/{method}", json={"clientKey": self.key, **body}).json()
 
-    def solve(self, task: dict[str, Any], timeout: float = 240) -> dict[str, Any]:
+    def create(self, task: dict[str, Any]) -> int:
         created = self._post("createTask", {"task": task})
         if created.get("errorId"):
             raise RuntimeError(created.get("errorDescription") or created.get("errorCode"))
-        return self.wait(created["taskId"], timeout)
+        return created["taskId"]
+
+    def solve(self, task: dict[str, Any], timeout: float = 240) -> dict[str, Any]:
+        return self.wait(self.create(task), timeout)
 
     def wait(self, task_id: int, timeout: float = 240) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
@@ -59,7 +68,7 @@ class Client:
             if r.get("errorId"):
                 raise RuntimeError(r.get("errorDescription") or r.get("errorCode"))
             time.sleep(0.5)
-        raise RuntimeError(tr("нет ответа за {seconds} с", seconds=f"{timeout:.0f}"))
+        raise StillSolving(task_id, timeout)
 
     def report_wrong(self, task_id: int, retry: bool = False) -> dict[str, Any]:
         return self._post("reportIncorrect", {"taskId": task_id, "retry": retry})

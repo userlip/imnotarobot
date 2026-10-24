@@ -7,7 +7,7 @@ import functools
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
-from .client import Client, NotRunning, image_b64
+from .client import Client, NotRunning, StillSolving, image_b64
 from .i18n import tr
 
 server = MCPServer(
@@ -16,7 +16,8 @@ server = MCPServer(
         "Solves captchas through the user's own «Я не робот» app (local model, then vision models, then RuCaptcha workers). "
         "Use solve_image_captcha when you have the captcha picture (a screenshot or a file); use solve_token_captcha when "
         "the page has a reCAPTCHA, hCaptcha or Turnstile widget and you know its site key. If the site rejects an answer, "
-        "call report_wrong with the task_id so that layer is not trusted for that picture again."
+        "call report_wrong with the task_id so that layer is not trusted for that picture again. A slow captcha comes back "
+        "as status \"solving\" with a task_id: call get_result with it until the answer arrives."
     ),
 )
 
@@ -45,6 +46,18 @@ def explained(fn):
     return wrapper
 
 
+# MCP clients drop a call after about a minute (Claude Code by default), while workers can take several
+WAIT_PER_CALL = 45.0
+
+
+def _answer(c: Client, task_id: int) -> dict:
+    try:
+        return _result(c.wait(task_id, WAIT_PER_CALL))
+    except StillSolving:
+        return {"status": "solving", "task_id": task_id,
+                "next": tr("капча ещё решается — вызовите get_result с этим task_id")}
+
+
 def _result(r: dict) -> dict:
     return {"answer": r.get("solution"), "layer": r.get("layer"), "confidence": r.get("confidence"),
             "low_confidence": r.get("lowConfidence"), "task_id": r.get("taskId"), "cost": r.get("cost")}
@@ -62,19 +75,29 @@ def solve_image_captcha(image: str, kind: Literal["text", "click", "grid"] = "te
         task["comment"] = instruction
     if kind == "grid":
         task.update(rows=rows, columns=columns)
-    return _result(_client().solve(task))
+    c = _client()
+    return _answer(c, c.create(task))
 
 
 @server.tool()
 @explained
 def solve_token_captcha(kind: Literal["recaptcha_v2", "recaptcha_v3", "hcaptcha", "turnstile"], page_url: str,
                         site_key: str, action: str = "") -> dict:
-    """Get a pass token for a checkbox captcha widget on page_url (solved by RuCaptcha workers, paid). Put the
-    returned answer.gRecaptchaResponse or answer.token into the page's response field."""
+    """Get a pass token for a checkbox captcha widget on page_url (the app's own browser first, RuCaptcha workers if it
+    fails). Put the returned answer.gRecaptchaResponse or answer.token into the page's response field and call the
+    widget's callback if it has one."""
     task = {"type": TOKEN_KINDS[kind], "websiteURL": page_url, "websiteKey": site_key}
     if action:
         task["pageAction"] = action
-    return _result(_client().solve(task, timeout=300))
+    c = _client()
+    return _answer(c, c.create(task))
+
+
+@server.tool()
+@explained
+def get_result(task_id: int) -> dict:
+    """Answer of a captcha that came back as status "solving"; may say "solving" again — then call it again."""
+    return _answer(_client(), task_id)
 
 
 @server.tool()
@@ -85,7 +108,7 @@ def report_wrong(task_id: int, retry: bool = True) -> dict:
     r = c.report_wrong(task_id, retry)
     if r.get("errorId"):
         raise ToolError(r.get("errorDescription") or r.get("errorCode"))
-    return {"reported": True, "retry": _result(c.wait(r["taskId"])) if r.get("taskId") else None}
+    return {"reported": True, "retry": _answer(c, r["taskId"]) if r.get("taskId") else None}
 
 
 @server.tool()
