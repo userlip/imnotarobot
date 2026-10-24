@@ -124,6 +124,11 @@ class Config:
     human_daily_limit: float = 100.0
     # warn in the menu when the workers' balance drops below this, same currency
     human_low_balance: float = 50.0
+    # this many captchas sent to the workers within human_alarm_minutes means the cheaper layers are failing
+    human_alarm_count: int = 5
+    human_alarm_minutes: float = 30.0
+    # programs the model layers depend on (local model servers); started hidden when they are not running
+    companion_apps: list[str] = field(default_factory=list)
     # all cloud models together, USD per day; 0 = no limit. Models with unknown prices are not counted
     cloud_daily_limit_usd: float = 1.0
     # a layer is skipped for a captcha kind once it has this many reports and fails at least half of them

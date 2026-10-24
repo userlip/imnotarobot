@@ -148,3 +148,11 @@ def test_silent_service_skips_its_other_models_and_goes_to_the_next_service():
     human = FakeLayer("human", [("xyz", 1.0)])
     r = asyncio.run(Chain([low, high, human], State()).solve({"type": "ImageToTextTask", "body": ""}))
     assert r.layer == "human" and high.calls == 0
+
+
+def test_every_layer_a_captcha_reaches_is_counted():
+    local, human = FakeLayer("local", [Unsolvable("no")] * 2), FakeLayer("human", [("a", 1.0)] * 2)
+    chain = Chain([local, human])
+    solve(chain)
+    solve(chain)
+    assert chain.sent_since("human", 0) == 2 and chain.sent_since("local", 0) == 2

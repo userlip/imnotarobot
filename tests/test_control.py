@@ -217,3 +217,29 @@ def test_server_takes_its_keys_from_the_environment(ctl, monkeypatch):
     lines = ctl.setup_from_env()
     assert lines == ["GEMINI_API_KEY: gemini, gemini-3-flash-preview"] and ctl.secrets["key:gemini"] == "AIza-env"
     assert ctl.setup_from_env() == []
+
+
+def test_a_run_of_paid_captchas_raises_an_alarm_until_quieted(ctl):
+    ctl.cfg.human_alarm_count = 3
+    sent = ctl.service.chain.sent.setdefault("human", [])
+    sent += [control.time.monotonic()] * 2
+    assert ctl.human_alarm() == 0
+    sent.append(control.time.monotonic())
+    assert ctl.human_alarm() == 3
+    assert "human-often" in dict(ctl.alerts())
+    ctl.quiet_alarm()
+    assert ctl.human_alarm() == 0
+
+
+def test_only_companions_that_are_not_running_are_started(ctl, monkeypatch):
+    calls = []
+
+    def run(cmd, **_):
+        calls.append(cmd)
+        return type("R", (), {"returncode": 0 if "Busy" in cmd[-1] or cmd[0] == "open" else 1})()
+
+    monkeypatch.setattr(control.subprocess, "run", run)
+    ctl.cfg.companion_apps = ["Busy App", "Antigravity Manager"]
+    assert ctl.start_companions() == ["Antigravity Manager"]
+    assert ["open", "-g", "-j", "-a", "Antigravity Manager"] in calls
+    assert not any(c[0] == "open" and "Busy App" in c for c in calls)

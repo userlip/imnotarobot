@@ -4,7 +4,9 @@ import asyncio
 import json
 import os
 import plistlib
+import re
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -54,6 +56,7 @@ class Controller:
         self.ui_token = secrets.token_urlsafe(24)
         # set by the menu bar app: the page asks for native things (open the window, quit) through these
         self.hooks: dict[str, Any] = {}
+        self.alarm_quiet_since = 0.0
 
     # --- server ---------------------------------------------------------------
     def free_port(self) -> int:
@@ -465,6 +468,8 @@ class Controller:
         limit = self.cfg.human_daily_limit
         if limit and self.service.chain.state.spent_today("human") >= limit:
             out.append(("human-limit", tr("Люди: исчерпан дневной лимит {money}. До завтра капчи им не отправляются.", money=money(limit, cur))))
+        if sent := self.human_alarm():
+            out.append(("human-often", tr("За {minutes} мин людям ушло {count} капч — похоже, модели перестали отвечать.", minutes=f"{self.cfg.human_alarm_minutes:g}", count=sent)))
         cloud = self.cfg.cloud_daily_limit_usd
         if cloud and self.spend_today()["cloud_usd"] >= cloud:
             out.append(("cloud-limit", tr("Облачные модели: исчерпан дневной лимит ${limit}.", limit=f"{cloud:g}")))
@@ -477,6 +482,30 @@ class Controller:
             text = tr("Сравнение моделей готово. Лучшая: {best}.", best=best) if best else tr("Сравнение моделей закончилось.")
             out.append((f"bench:{self.bench['finished']}", self.bench.get("error") or text))
         return out
+
+    def human_alarm(self) -> int:
+        """How many captchas reached the workers lately when that is too many, else 0.
+
+        The cheaper layers normally answer almost everything, so a run of paid captchas means one of them broke.
+        Acknowledging silences it until the next run.
+        """
+        window = self.cfg.human_alarm_minutes * 60
+        since = max(time.monotonic() - window, self.alarm_quiet_since)
+        sent = self.service.chain.sent_since("human", since)
+        return sent if self.cfg.human_alarm_count and sent >= self.cfg.human_alarm_count else 0
+
+    def quiet_alarm(self) -> None:
+        self.alarm_quiet_since = time.monotonic()
+
+    def start_companions(self) -> list[str]:
+        """Starts, hidden, every companion program that is not running; returns the ones it started."""
+        started = []
+        for name in self.cfg.companion_apps:
+            if subprocess.run(["pgrep", "-qf", f"/{re.escape(name)}\\.app/Contents/MacOS/"]).returncode == 0:
+                continue
+            if subprocess.run(["open", "-g", "-j", "-a", name]).returncode == 0:
+                started.append(name)
+        return started
 
     def stop_bench(self) -> None:
         if self.bench.get("running"):

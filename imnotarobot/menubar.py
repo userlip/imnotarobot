@@ -1,5 +1,6 @@
 import functools
 import threading
+import time
 from pathlib import Path
 
 import rumps
@@ -9,6 +10,8 @@ from .i18n import tr
 
 APP_NAME = tr("Я не робот")
 ICON = Path(__file__).with_name("assets") / "menubar.png"
+ALARM_ICON = Path(__file__).with_name("assets") / "menubar-alarm.png"
+ALARM_SOUND_EVERY = 30  # seconds
 POPOVER_SIZE = (340, 470)
 
 
@@ -180,8 +183,10 @@ class MenuBarApp(rumps.App):
         controller.hooks["quit"] = lambda _: self._on_main(self.quit, None)
         controller.hooks["panel-size"] = lambda h: self._on_main(self.panel.resize, h)
         self._started = False
+        self._alarm_sounded = 0.0
         rumps.Timer(self.tick, 2).start()
         threading.Thread(target=self._check_human, daemon=True).start()
+        threading.Thread(target=self._keep_companions, daemon=True).start()
 
     @staticmethod
     def _on_main(fn, arg) -> None:
@@ -193,13 +198,36 @@ class MenuBarApp(rumps.App):
         if self.c.cfg.human_api_key:
             self.c.check_human()
 
+    def _keep_companions(self) -> None:
+        while True:
+            self.c.start_companions()
+            time.sleep(60)
+
     def _take_over_status_item(self) -> None:
         """A click on the icon opens the panel instead of rumps' menu."""
         item = self._nsapp.nsstatusitem
         item.setMenu_(None)
-        self._target = _classes()[2].alloc().initWithCallback_(lambda: self.panel.toggle(item.button()))
+        self._target = _classes()[2].alloc().initWithCallback_(self._icon_clicked)
         item.button().setTarget_(self._target)
         item.button().setAction_("clicked:")
+
+    def _icon_clicked(self) -> None:
+        self.c.quiet_alarm()
+        self.show_alarm()
+        self.panel.toggle(self._nsapp.nsstatusitem.button())
+
+    def show_alarm(self) -> None:
+        """Red icon and a sound repeated until the icon is clicked: a run of paid captchas usually means a broken layer."""
+        alarm = bool(self.c.human_alarm())
+        if alarm != getattr(self, "_alarm_shown", False):
+            self._alarm_shown = alarm
+            self.template = not alarm
+            self.icon = str(ALARM_ICON if alarm else ICON)
+        if alarm and time.monotonic() - self._alarm_sounded >= ALARM_SOUND_EVERY:
+            from AppKit import NSSound
+
+            self._alarm_sounded = time.monotonic()
+            NSSound.soundNamed_("Sosumi").play()
 
     def tick(self, _=None) -> None:
         if not self._started:
@@ -209,6 +237,7 @@ class MenuBarApp(rumps.App):
             if not self.c.cfg.keys and not self.c.cfg.human_api_key:
                 self.open_window()
         self.notify_new_alerts()
+        self.show_alarm()
         job = self.c.bench
         self.title = f"{job['done']}/{job['total']}" if job.get("running") else None
 

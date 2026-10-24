@@ -133,6 +133,8 @@ EN: dict[str, str] = {
     "сравнение уже идёт": "a comparison is already running",
     "нет моделей с картинками для сравнения": "no vision models to compare",
     "На {service} осталось {money} — пора пополнить.": "{money} left on {service}, time to top up.",
+    "За {minutes} мин людям ушло {count} капч — похоже, модели перестали отвечать.":
+        "{count} captchas went to human workers in {minutes} min — the models have probably stopped answering.",
     "Люди: исчерпан дневной лимит {money}. До завтра капчи им не отправляются.":
         "Humans: the daily limit {money} is used up. No captchas go to them until tomorrow.",
     "Облачные модели: исчерпан дневной лимит ${limit}.": "Cloud models: the daily limit ${limit} is used up.",

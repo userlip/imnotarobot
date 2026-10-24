@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import logging
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import Any
@@ -104,6 +105,8 @@ class Chain:
         self.layers = layers
         self.state = state or State()
         self.daily_limits = daily_limits or {}
+        # monotonic times a captcha was handed to each layer, newest last
+        self.sent: dict[str, list[float]] = {}
 
     def layer(self, name: str) -> Layer | None:
         return next((x for x in self.layers if x.name == name), None)
@@ -137,6 +140,8 @@ class Chain:
             if reason:
                 notes.append(f"{layer.title or layer.name}: {reason}")
                 continue
+            self.sent.setdefault(layer.name, []).append(time.monotonic())
+            del self.sent[layer.name][:-200]
             try:
                 if getattr(layer, "accepts_prior", False) and candidates:
                     r = await layer.solve(task, prior=[c.solution for c in candidates])
@@ -164,6 +169,9 @@ class Chain:
             best.meta["tried"] = notes
             return best
         raise Unsolvable("; ".join(notes) or tr("ни один слой не умеет {type}", type=task["type"]))
+
+    def sent_since(self, layer: str, since: float) -> int:
+        return sum(1 for t in self.sent.get(layer, ()) if t >= since)
 
     async def report_incorrect(self, task: dict[str, Any], result: Result) -> None:
         self.state.bad(kind_of(task), result.layer, image_key(task))
