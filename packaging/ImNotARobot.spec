@@ -1,4 +1,10 @@
+import re
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
+
+# the update check compares GitHub's tag with this, so the bundle takes it from the package
+VERSION = re.search(r'__version__ = "(.+?)"', Path(SPECPATH, "../imnotarobot/__init__.py").read_text()).group(1)
 
 datas, binaries, hiddenimports = [], [], []
 for pkg in ("ddddocr", "onnxruntime", "rumps", "WebKit", "patchright"):
@@ -20,6 +26,6 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="ImNotARobot", console=False, argv_emulation=False)
 coll = COLLECT(exe, a.binaries, a.datas, name="ImNotARobot")
 app = BUNDLE(coll, name="ImNotARobot.app", icon="icon.icns", bundle_identifier="app.captcha-stack",
-             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": "0.4.1", "CFBundleDisplayName": "ImNotARobot", "CFBundleName": "ImNotARobot", "LSHasLocalizedDisplayName": True,
+             info_plist={"LSUIElement": True, "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True}, "CFBundleShortVersionString": VERSION, "CFBundleDisplayName": "ImNotARobot", "CFBundleName": "ImNotARobot", "LSHasLocalizedDisplayName": True,
                          "CFBundleDevelopmentRegion": "en", "CFBundleLocalizations": ["en", "ru"],
                          "NSHumanReadableCopyright": "ziganshin"})

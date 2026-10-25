@@ -250,3 +250,25 @@ def test_other_apps_open_the_window_with_the_access_key(ui):
     assert client.post("/app/open", json={"clientKey": c.cfg.client_key, "view": "journal"}).json()["ok"]
     assert opened == ["journal"]
     assert client.get("/health").json()["app"] == "imnotarobot"
+
+
+def test_update_button_starts_the_install(ui, monkeypatch):
+    import imnotarobot.update as update
+
+    c, client = ui
+    assert client.get("/api/ui/state").json()["update"] is None
+    assert client.post("/api/ui/update").status_code == 400
+    monkeypatch.setattr(update, "running_app", lambda: control.Path("/Applications/ImNotARobot.app"))
+    monkeypatch.setattr(update, "latest", lambda: {"version": "9.0.0", "url": "u", "page": "p", "sha256": ""})
+    calls = []
+    monkeypatch.setattr(update, "install", lambda info, app, progress=None: calls.append((info["version"], str(app))))
+    monkeypatch.setattr(update, "relaunch_later", lambda app: calls.append("relaunch"))
+    assert c.check_update()["version"] == "9.0.0"
+    assert any(i.startswith("update:9.0.0") for i, _ in c.alerts())
+    assert client.get("/api/ui/state").json()["update"]["version"] == "9.0.0"
+    assert client.post("/api/ui/update").json()["ok"]
+    for _ in range(50):
+        if c.update_job.get("done"):
+            break
+        time.sleep(0.02)
+    assert calls == [("9.0.0", "/Applications/ImNotARobot.app"), "relaunch"]

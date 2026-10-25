@@ -12,6 +12,7 @@ APP_NAME = tr("Я не робот")
 ICON = Path(__file__).with_name("assets") / "menubar.png"
 ALARM_ICON = Path(__file__).with_name("assets") / "menubar-alarm.png"
 ALARM_SOUND_EVERY = 30  # seconds
+UPDATE_CHECK_EVERY = 24 * 3600  # seconds
 POPOVER_SIZE = (340, 470)
 
 
@@ -187,6 +188,7 @@ class MenuBarApp(rumps.App):
         rumps.Timer(self.tick, 2).start()
         threading.Thread(target=self._check_human, daemon=True).start()
         threading.Thread(target=self._keep_companions, daemon=True).start()
+        threading.Thread(target=self._check_updates, daemon=True).start()
 
     @staticmethod
     def _on_main(fn, arg) -> None:
@@ -197,6 +199,11 @@ class MenuBarApp(rumps.App):
     def _check_human(self) -> None:
         if self.c.cfg.human_api_key:
             self.c.check_human()
+
+    def _check_updates(self) -> None:
+        while True:
+            self.c.check_update()
+            time.sleep(UPDATE_CHECK_EVERY)
 
     def _keep_companions(self) -> None:
         while True:

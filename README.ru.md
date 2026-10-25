@@ -17,7 +17,7 @@
 
 ## Быстрый старт
 
-1. Скачайте `ImNotARobot.dmg` из [Releases](https://github.com/zigansh1n/imnotarobot/releases) и перенесите программу в «Программы». В Finder она называется «Я не робот». Подписи Apple пока нет: если macOS не даст открыть, нажмите «Всё равно открыть» в Системных настройках → Конфиденциальность и безопасность.
+1. Скачайте `ImNotARobot.dmg` из [Releases](https://github.com/zigansh1n/imnotarobot/releases) и перенесите программу в «Программы». В Finder она называется «Я не робот». Подписи Apple пока нет: если macOS не даст открыть, нажмите «Всё равно открыть» в Системных настройках → Конфиденциальность и безопасность. Следующие версии ставятся из самой программы: раз в день она смотрит GitHub и показывает кнопку «Обновить».
 2. Вставьте в «Ключи и модели» ключ любой модели с картинками: поставщик определится сам, лучшая для капч модель включится сама. Ключа нет — у Gemini есть бесплатный: [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 3. В своей программе поменяйте адрес сервиса капч на `http://127.0.0.1:8765`, а ключ — на ключ доступа из раздела «Подключение».
 
@@ -55,12 +55,14 @@
 
 ## Сервер (Docker)
 
-То же API и MCP на Linux, без окна:
+То же API и MCP на Linux, без окна. Готовый образ для серверов x86 и ARM выходит с каждой версией:
 
 ```bash
-docker build -t imnotarobot .
-docker run -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=ваш-ключ-доступа -v imnotarobot:/data imnotarobot
+docker run -d --restart unless-stopped -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=ваш-ключ-доступа \
+  -v imnotarobot:/data --name imnotarobot ghcr.io/zigansh1n/imnotarobot
 ```
+
+Обновить: `docker pull ghcr.io/zigansh1n/imnotarobot`, затем удалить контейнер и запустить ту же команду; ключи и история остаются в томе `imnotarobot`. Собрать самому: `docker build -t imnotarobot .`
 
 `HUMAN_API_KEY` (и `HUMAN_PROVIDER=2captcha`, если нужно) добавляет платную последнюю ступень. Ключи лежат в `/data/secrets.json`, читать его может только сервер.
 

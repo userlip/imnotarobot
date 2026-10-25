@@ -41,6 +41,13 @@ EN: dict[str, str] = {
     "Выйти из «{app}»": "Quit {app}",
     "Правка": "Edit", "Отменить": "Undo", "Повторить": "Redo", "Вырезать": "Cut", "Копировать": "Copy",
     "Вставить": "Paste", "Выбрать всё": "Select All", "Окно": "Window", "Закрыть": "Close", "Свернуть": "Minimize",
+    # updates
+    "Вышла версия {version}. Обновить можно в окне программы.": "Version {version} is out. Update it from the app window.",
+    "Скачиваю версию {version}. Программа перезапустится сама.": "Downloading version {version}. The app restarts by itself.",
+    "обновлений нет": "no updates",
+    "скачанный файл повреждён, попробуйте ещё раз": "the download is damaged, try again",
+    "нет прав менять {folder} — скачайте новую версию вручную": "no permission to change {folder}, download the new version by hand",
+    "в файле обновления нет приложения": "the update file has no app inside",
     # layers
     "Локальная модель": "Local model",
     "Браузер (галочки: reCAPTCHA, hCaptcha, Turnstile)": "Browser (checkboxes: reCAPTCHA, hCaptcha, Turnstile)",

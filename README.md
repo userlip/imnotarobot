@@ -22,7 +22,7 @@
 
 ## Quick start
 
-1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications. It is not signed by Apple yet: if macOS blocks the first launch, press **Open Anyway** in System Settings → Privacy & Security.
+1. Download `ImNotARobot.dmg` from [Releases](https://github.com/zigansh1n/imnotarobot/releases) and move the app to Applications. It is not signed by Apple yet: if macOS blocks the first launch, press **Open Anyway** in System Settings → Privacy & Security. Later versions install from the app: it checks GitHub once a day and shows an **Update** button.
 2. Paste a key of any vision model into **Keys and models**: the provider is detected and the best model for captchas switches on by itself. No key yet? Gemini has a free tier at [aistudio.google.com/apikey](https://aistudio.google.com/apikey).
 3. In your program, change the captcha service address to `http://127.0.0.1:8765` and the API key to the access key from **Connection**.
 
@@ -101,12 +101,14 @@ Tools: `solve_image_captcha`, `solve_token_captcha`, `report_wrong`, `captcha_st
 
 ## Server (Docker)
 
-The same API and MCP on Linux, without the window:
+The same API and MCP on Linux, without the window. A ready image for x86 and ARM servers is published with every release:
 
 ```bash
-docker build -t imnotarobot .
-docker run -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=your-access-key -v imnotarobot:/data imnotarobot
+docker run -d --restart unless-stopped -p 8765:8765 -e GEMINI_API_KEY=... -e CLIENT_KEY=your-access-key \
+  -v imnotarobot:/data --name imnotarobot ghcr.io/zigansh1n/imnotarobot
 ```
+
+To update: `docker pull ghcr.io/zigansh1n/imnotarobot`, then remove the container and run the same command again; keys and history stay in the `imnotarobot` volume. To build it yourself: `docker build -t imnotarobot .`
 
 `HUMAN_API_KEY` (and `HUMAN_PROVIDER=2captcha` if needed) adds the paid last step. Keys are kept in `/data/secrets.json`, readable only by the server.
 

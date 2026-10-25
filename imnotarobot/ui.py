@@ -114,6 +114,7 @@ def state(c: "Controller") -> dict[str, Any]:
         "modelTests": c.model_tests,
         "benchCases": len(c.bench_cases()),
         "tiles": {"installed": tiles.available(), "sizeMb": tiles.SIZE_MB, "job": c.tiles_job},
+        "update": c.update and {**c.update, "job": c.update_job},
         "now": time.time(),
         "lang": i18n.LANG,
     }
@@ -193,6 +194,9 @@ def add_ui_routes(app: FastAPI, c: "Controller") -> None:
             providers = {k.name: k.provider for k in c.cfg.keys}
             subprocess.run(["open", share.issue_url(share.report(c.bench, providers))], check=False)
             return done(tr("Открыл заготовку на GitHub: проверьте и нажмите «Submit new issue»."))
+        if action == "update":
+            c.install_update()
+            return done(tr("Скачиваю версию {version}. Программа перезапустится сама.", version=c.update["version"]))
         if action == "open-url":
             url = str(b.get("url", ""))
             if not url.startswith(("https://", "http://")):

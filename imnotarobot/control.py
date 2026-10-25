@@ -57,6 +57,9 @@ class Controller:
         # set by the menu bar app: the page asks for native things (open the window, quit) through these
         self.hooks: dict[str, Any] = {}
         self.alarm_quiet_since = 0.0
+        # newer release found on GitHub; job tracks a download started from the window
+        self.update: dict | None = None
+        self.update_job: dict = {}
 
     # --- server ---------------------------------------------------------------
     def free_port(self) -> int:
@@ -477,6 +480,8 @@ class Controller:
 
         for name, (_, msg) in LAST_ERRORS.items():
             out.append((f"model-error:{name}:{msg[:40]}", tr("Модель {name} ошибается: {error}", name=name[4:], error=msg[:120])))
+        if self.update and not self.update_job.get("running"):
+            out.append((f"update:{self.update['version']}", tr("Вышла версия {version}. Обновить можно в окне программы.", version=self.update["version"])))
         if self.bench.get("finished") and not self.bench.get("running"):
             best = (self.bench.get("rows") or [{}])[0].get("model")
             text = tr("Сравнение моделей готово. Лучшая: {best}.", best=best) if best else tr("Сравнение моделей закончилось.")
@@ -506,6 +511,44 @@ class Controller:
             if subprocess.run(["open", "-g", "-j", "-a", name]).returncode == 0:
                 started.append(name)
         return started
+
+    def check_update(self) -> dict | None:
+        from . import update
+
+        if update.running_app() is None:
+            return None
+        try:
+            self.update = update.latest()
+        except Exception:  # offline or GitHub refused: the next daily check tries again
+            pass
+        return self.update
+
+    def install_update(self) -> None:
+        """Downloads and installs the found release in the background, then restarts the app."""
+        from . import update
+
+        app = update.running_app()
+        if app is None:
+            raise ValueError(tr("это доступно только в приложении"))
+        if not self.update:
+            raise ValueError(tr("обновлений нет"))
+        if self.update_job.get("running"):
+            return
+        info = self.update
+        self.update_job = {"running": True, "progress": 0.0, "error": ""}
+
+        def work():
+            try:
+                update.install(info, app, progress=lambda f: self.update_job.update(progress=round(f, 3)))
+            except Exception as e:
+                self.update_job = {"running": False, "error": str(e)}
+                return
+            self.update_job = {"running": False, "done": True}
+            update.relaunch_later(app)
+            if hook := self.hooks.get("quit"):
+                hook(None)
+
+        threading.Thread(target=work, daemon=True).start()
 
     def stop_bench(self) -> None:
         if self.bench.get("running"):

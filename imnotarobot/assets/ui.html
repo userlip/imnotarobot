@@ -174,6 +174,7 @@ body.pop #app { display: none; } body.pop #pop { display: flex; }
 #pop .big .orb b { font-size: 21px; font-weight: 300; letter-spacing: -.03em; }
 #pop .big .txt b { font-size: 14px; display: block; } #pop .big .txt span { color: var(--mut); font-size: 12px; }
 #pop .label { margin: 4px 6px -2px; }
+#pop .upd { background: var(--tile); border-radius: 14px; padding: 9px 14px; font-size: 13px; cursor: default; }
 #pop .steps { background: var(--tile); border-radius: 14px; padding: 6px 12px; }
 #pop .st { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; padding: 7px 0; position: relative; }
 #pop .st:not(:last-child):after { content: ""; position: absolute; left: 11.5px; top: 31px; bottom: -7px; width: 1px; background: var(--line); }
@@ -221,6 +222,7 @@ body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(
   </aside>
   <main>
     <div class="banner warn" id="portNote" hidden></div>
+    <div class="banner row" id="updateNote" hidden><span class="grow" id="updateText"></span><a id="updatePage" target="_blank">Что нового</a><button class="primary" id="updateBtn">Обновить</button></div>
 
     <section class="view on" id="v-today">
       <div class="hero">
@@ -344,6 +346,7 @@ body.pop { --tile: rgba(255,255,255,.62); --fill: rgba(0,0,0,.06); --line: rgba(
   </div>
   <div class="label">Как решается капча</div>
   <div class="steps" id="popSteps"></div>
+  <div class="upd" id="popUpdate" hidden></div>
   <div class="hint">Порядок и включение ступеней — в окне, раздел «Путь капчи».</div>
   <div class="more"><span data-open="journal">Журнал</span><span data-open="path" class="grow">Открыть окно…</span><span id="popQuit">Выйти</span></div>
 </div>
@@ -405,6 +408,7 @@ const EN = {
   "введите ключ ещё раз": "enter the key again", "прошлая версия сохранила его так, что новая не может прочитать": "the previous version saved it so that this one cannot read it",
   "Нет ключа — последняя ступень выключена.": "No key, the last step is off.", "ключ работает": "the key works", "ошибка": "error", "ключ сохранён": "key saved",
   "баланс": "balance", "— пора пополнить": "— time to top up",
+  "Что нового": "What's new", "Обновить": "Update", "Ещё раз": "Try again",
   "Приложение понимает API 2Captcha и RuCaptcha. В своей программе поменяйте адрес сервиса на этот, а ключ — на ключ доступа.":
     "The app speaks the 2Captcha and RuCaptcha API. In your program, change the service address to this one and the key to the access key.",
   "Адрес": "Address", "Скопировать": "Copy", "Ключ доступа": "Access key", "Новый": "New", "Требовать ключ": "Require the key",
@@ -460,6 +464,8 @@ const RULES = [
   [/^примерно (.+)$/, "about $1"], [/^Удалить ключ (.+) и его модели\?$/, "Remove key $1 and its models?"],
   [/^Прогнать (.+) на 4 уровнях раздумий: решений (\d+), (.+)\. Запустить\?$/, (m, a, b, c) => `Run ${a} at 4 thinking levels: ${b} runs, ${t(c)}. Start?`],
   [/^(.+): ответ принят \((\d+)%\)$/m, "$1: answer accepted ($2%)"],
+  [/^Вышла версия (\S+)( — обновить)?$/, (m, v, u) => `Version ${v} is out${u ? " — update" : ""}`],
+  [/^Скачиваю версию (\S+): (\d+)%$/, "Downloading version $1: $2%"], [/^Не удалось обновить: (.+)$/s, (m, e) => `Could not update: ${t(e)}`],
 ];
 function t(s) {
   if (LANG !== "en" || !s) return s;
@@ -579,6 +585,7 @@ function render(s) {
   $("freeShare").textContent = st.free; $("spent").textContent = st.spentText; $("avgSec").textContent = st.avg;
   $("portNote").hidden = !s.access.portNote; $("portNote").textContent = s.access.portNote;
   $("firstRun").hidden = s.keys.length > 0 || s.human.hasKey;
+  renderUpdate(s.update);
 
   const strip = $("pathStrip");
   strip.style.setProperty("--edge", on.length ? (50 / on.length) + "%" : "50%");
@@ -607,6 +614,20 @@ function render(s) {
   renderJournal(s.recent);
   renderStats(s.stats);
   translateDom($("app"));
+}
+
+function updateLine(u) {
+  const j = u.job || {};
+  return j.running ? `Скачиваю версию ${u.version}: ${Math.round((j.progress || 0) * 100)}%` :
+    j.error ? `Не удалось обновить: ${j.error}` : `Вышла версия ${u.version}`;
+}
+function renderUpdate(u) {
+  $("updateNote").hidden = !u;
+  if (!u) return;
+  $("updateText").textContent = updateLine(u);
+  $("updatePage").href = u.page; $("updatePage").hidden = !u.page;
+  $("updateBtn").hidden = !!u.job?.running;
+  $("updateBtn").textContent = u.job?.error ? "Ещё раз" : "Обновить";
 }
 
 function shortOf(id, title) { const l = S.layers.find(x => x.id === id); return l ? shortTitle(l) : (title || id); }
@@ -787,6 +808,8 @@ function renderPop(s, st, on, hotId) {
     return `<div class="st ${l.enabled ? "" : "off"} ${l.id === hotId ? "hot" : ""}"><div class="ic">${l.enabled ? ++n : "–"}</div>
       <div><span class="n">${esc(shortTitle(l))}</span><small>${esc(popNote(l))}</small></div><span class="r">${esc(right)}</span></div>`;
   }).join("");
+  $("popUpdate").hidden = !s.update;
+  if (s.update) $("popUpdate").textContent = updateLine(s.update) + (s.update.job?.running ? "" : " — обновить");
   // the native panel takes the page's height, so nothing is cut off whatever the number of steps
   requestAnimationFrame(() => {
     const h = Math.ceil($("pop").getBoundingClientRect().height);
@@ -827,6 +850,7 @@ document.addEventListener("click", async e => {
   const link = e.target.closest("a[target=_blank]");
   if (link) { e.preventDefault(); if (link.href.startsWith("http")) api("open-url", {url: link.href}); return; }
   const nav = e.target.closest(".nav"); if (nav) return show(nav.dataset.view);
+  if (e.target.id === "updateBtn" || (e.target.id === "popUpdate" && !S.update?.job?.running)) return api("update", {}, e.target.id === "updateBtn" ? e.target : null);
   const row = e.target.closest("[data-entry]"); if (row) return openEntry(row.dataset.entry);
   const open = e.target.closest("[data-open]"); if (open) return api("open-window", {view: open.dataset.open});
   if (e.target.id === "popQuit") { if (await ask("Выйти? Капчи перестанут решаться, пока приложение снова не запустят.", "Выйти")) api("quit", {}); return; }
